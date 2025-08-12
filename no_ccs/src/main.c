@@ -5,7 +5,7 @@
 #include "bq25798.h"
 #include "state_machine.h"
 
-void main() {
+int main() {
     system_init();
     scheduler_init();
 
@@ -16,6 +16,7 @@ void main() {
         // The state machine is updated continuously
         update_system_state_machine();
     }
+    return 0;
 }
 
 void read_bms_status_task(void) {

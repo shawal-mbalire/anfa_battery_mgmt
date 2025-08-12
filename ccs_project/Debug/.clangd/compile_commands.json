@@ -1,0 +1,12 @@
+[
+   {
+      "directory" : "/home/shawal/GitHub/anfa_battery_management/ccs_project/Debug",
+      "command"   : "clang++ -D__MSPM0G3507__ -I\"/home/shawal/GitHub/anfa_battery_management/ccs_project\" -I\"/home/shawal/GitHub/anfa_battery_management/ccs_project/Debug\" -I\"/home/shawal/ti/mspm0_sdk_2_05_01_00/source/third_party/CMSIS/Core/Include\" -I\"/home/shawal/ti/mspm0_sdk_2_05_01_00/source\" -I\"/usr/bin/arm-none-eabi/include/newlib-nano\" -I\"/usr/bin/arm-none-eabi/include\" -isystem\"/usr/include/c++/15\" -isystem\"/usr/include/c++/15/x86_64-redhat-linux\" -isystem\"/usr/include/c++/15/backward\" -isystem\"/usr/lib/gcc/x86_64-redhat-linux/15/include\" -isystem\"/usr/local/include\" -isystem\"/usr/include\" -std=c99 -xc",
+      "file"      : "/home/shawal/GitHub/anfa_battery_management/ccs_project/main.c"
+   },
+   {
+      "directory" : "/home/shawal/GitHub/anfa_battery_management/ccs_project/Debug",
+      "command"   : "clang++ -D__MSPM0G3507__ -I\"/home/shawal/GitHub/anfa_battery_management/ccs_project\" -I\"/home/shawal/GitHub/anfa_battery_management/ccs_project/Debug\" -I\"/home/shawal/ti/mspm0_sdk_2_05_01_00/source/third_party/CMSIS/Core/Include\" -I\"/home/shawal/ti/mspm0_sdk_2_05_01_00/source\" -I\"/usr/bin/arm-none-eabi/include/newlib-nano\" -I\"/usr/bin/arm-none-eabi/include\" -isystem\"/usr/include/c++/15\" -isystem\"/usr/include/c++/15/x86_64-redhat-linux\" -isystem\"/usr/include/c++/15/backward\" -isystem\"/usr/lib/gcc/x86_64-redhat-linux/15/include\" -isystem\"/usr/local/include\" -isystem\"/usr/include\" -std=c99 -xc",
+      "file"      : "/home/shawal/GitHub/anfa_battery_management/ccs_project/Debug/ti_msp_dl_config.c"
+   }
+]
