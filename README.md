@@ -30,10 +30,38 @@ A custom **Hardware Abstraction Layer (HAL)** is implemented to provide a clean,
 
 The repository is organized into the following directories:
 
-- `src/`: Contains the main application logic, including the state machine implementation.
-- `drivers/`: Houses the bare-metal I²C driver and the dedicated HALs for the BQ76907 and BQ25798.
-- `core/`: Contains system-level initialization code and the cooperative scheduler.
-- `tests/`: Contains unit tests and a hardware-in-the-loop (HIL) test harness.
+| Path | Description |
+| :--- | :--- |
+| `main.syscfg` | System configuration file for the MCU. |
+| `Makefile` | Makefile for building the project. |
+| `core/` | Contains system-level initialization code and the cooperative scheduler. |
+| `core/scheduler.c` | Implementation of the cooperative scheduler. |
+| `core/system_init.c` | System initialization code. |
+| `docs/` | Contains project documentation. |
+| `docs/architecture.md` | Detailed description of the software architecture. |
+| `docs/bq25798.pdf` | Datasheet for the BQ25798 charge controller. |
+| `docs/bq76907.pdf` | Datasheet for the BQ76907 battery monitor. |
+| `docs/bq7690xSoftwareguide.pdf` | Software guide for the BQ7690x series. |
+| `docs/BRIEF.md` | Project brief and high-level design decisions. |
+| `docs/i2c_guide.pdf` | Guide to the I²C protocol. |
+| `drivers/` | Houses the bare-metal I²C driver and the dedicated HALs for the BQ76907 and BQ25798. |
+| `drivers/bq25798.c` | Driver for the BQ25798 charge controller. |
+| `drivers/bq76907.c` | Driver for the BQ76907 battery monitor. |
+| `drivers/i2c.c` | I²C driver implementation. |
+| `include/` | Contains header files for the project. |
+| `include/bq25798.h` | Header file for the BQ25798 driver. |
+| `include/bq76907.h` | Header file for the BQ76907 driver. |
+| `include/i2c.h` | Header file for the I²C driver. |
+| `include/main.h` | Main header file for the project. |
+| `include/scheduler.h` | Header file for the cooperative scheduler. |
+| `include/state_machine.h` | Header file for the state machine. |
+| `include/system_init.h` | Header file for the system initialization code. |
+| `src/` | Contains the main application logic, including the state machine implementation. |
+| `src/main.c` | Main application file. |
+| `src/state_machine.c` | Implementation of the state machine. |
+| `tests/` | Contains unit tests and a hardware-in-the-loop (HIL) test harness. |
+| `tests/test_bq76907.c` | Unit tests for the BQ76907 driver. |
+
 
 ## 5. Development and Validation
 
