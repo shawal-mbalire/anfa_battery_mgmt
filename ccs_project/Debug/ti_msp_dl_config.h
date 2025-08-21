@@ -76,12 +76,28 @@ extern "C" {
 #define CPUCLK_FREQ                                                     32000000
 
 
+
+
+/* Defines for I2C_0 */
+#define I2C_0_INST                                                          I2C0
+#define I2C_0_INST_IRQHandler                                    I2C0_IRQHandler
+#define I2C_0_INST_INT_IRQN                                        I2C0_INT_IRQn
+#define GPIO_I2C_0_SDA_PORT                                                GPIOA
+#define GPIO_I2C_0_SDA_PIN                                         DL_GPIO_PIN_0
+#define GPIO_I2C_0_IOMUX_SDA                                      (IOMUX_PINCM1)
+#define GPIO_I2C_0_IOMUX_SDA_FUNC                       IOMUX_PINCM1_PF_I2C0_SDA
+#define GPIO_I2C_0_SCL_PORT                                                GPIOA
+#define GPIO_I2C_0_SCL_PIN                                         DL_GPIO_PIN_1
+#define GPIO_I2C_0_IOMUX_SCL                                      (IOMUX_PINCM2)
+#define GPIO_I2C_0_IOMUX_SCL_FUNC                       IOMUX_PINCM2_PF_I2C0_SCL
+
 /* clang-format on */
 
 void SYSCFG_DL_init(void);
 void SYSCFG_DL_initPower(void);
 void SYSCFG_DL_GPIO_init(void);
 void SYSCFG_DL_SYSCTL_init(void);
+void SYSCFG_DL_I2C_0_init(void);
 
 
 #ifdef __cplusplus

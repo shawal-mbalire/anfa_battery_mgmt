@@ -2,7 +2,7 @@
 # Automatically-generated file. Do not edit!
 ################################################################################
 
-CG_TOOL_ROOT := /usr/bin
+CG_TOOL_ROOT := /home/shawal/Downloads/gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux/gcc-arm-none-eabi-9-2019-q4-major
 
 GEN_OPTS__FLAG := @"./device.opt" 
 GEN_CMDS__FLAG := -Wl,-T"./device_linker.lds" 
@@ -137,7 +137,7 @@ all: $(OBJS) $(GEN_CMDS)
 ccs_project.out: $(OBJS) $(GEN_CMDS)
 	@echo 'Building target: "$@"'
 	@echo 'Invoking: GNU Linker'
-	"/usr/bin/gcc" @"device.opt"  -march=armv6-m -mthumb -mfloat-abi=soft -O2 -ffunction-sections -fdata-sections -g -gdwarf-3 -gstrict-dwarf -Wall -mcpu=cortex-m0plus -Wl,-Map,"ccs_project.map" -nostartfiles -static -Wl,--gc-sections -L"/home/shawal/ti/mspm0_sdk_2_05_01_00/source/ti/driverlib/lib/gcc/m0p/mspm0g1x0x_g3x0x" -L"/home/shawal/ti/mspm0_sdk_2_05_01_00/source" -L"/home/shawal/GitHub/anfa_battery_management/ccs_project" -L"/home/shawal/GitHub/anfa_battery_management/ccs_project/Debug/syscfg" -L"/usr/bin/arm-none-eabi/lib/thumb/v6-m/nofp" -march=armv6-m -mthumb --specs=nosys.specs -o"ccs_project.out" $(ORDERED_OBJS)
+	"/home/shawal/Downloads/gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux/gcc-arm-none-eabi-9-2019-q4-major/bin/arm-none-eabi-gcc-9.2.1" @"device.opt"  -O2 -ffunction-sections -fdata-sections -g -gdwarf-3 -gstrict-dwarf -Wall -mthumb -mfloat-abi=soft -Wl,-Map,"ccs_project.map" -nostartfiles -static -Wl,--gc-sections -L"/home/shawal/ti/mspm0_sdk_2_05_01_00/source/ti/driverlib/lib/gcc/m0p/mspm0g1x0x_g3x0x" -L"/home/shawal/ti/mspm0_sdk_2_05_01_00/source" -L"/home/shawal/GitHub/anfa_battery_management/ccs_project" -L"/home/shawal/GitHub/anfa_battery_management/ccs_project/Debug/syscfg" -L"/home/shawal/Downloads/gcc-arm-none-eabi-9-2019-q4-major-x86_64-linux/gcc-arm-none-eabi-9-2019-q4-major/arm-none-eabi/lib/thumb/v6-m/nofp" -march=armv6-m -mthumb --specs=nosys.specs -o"ccs_project.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: "$@"'
 	@echo ' '
 
