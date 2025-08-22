@@ -25,57 +25,11 @@ uint8_t  BQ25798_init(BQ25798 *device, I2C_HandleTypeDef *i2cHandle){
 	registerData = 0x10; // disable watchdog, enable host mode, i2c wathdog reset on
 	BQ25798_WriteRegister(device, BQ25798_REG_CHARGER_CTRL_1, &registerData);
 
-    // set limits Implemented at POR power on reset
-	BQ25798_WriteRegister(device, BQ25798_REG_MIN_SYS_VOLTAGE, (uint8_t[]){0x70}); // 14500mV
-	BQ25798_WriteRegister(device, BQ25798_REG_CHARGE_VOLTAGE_LIMIT, (uint8_t[]){0x05B4}); // 14600mV
-	BQ25798_WriteRegister(device, BQ25798_REG_CHARGE_CURRENT_LIMIT, (uint8_t[]){0x03F4}); // 3650mA
-	BQ25798_WriteRegister(device, BQ25798_REG_INPUT_VOLTAGE_LIMIT, (uint8_t[]){0x24}); // 3600mV
-	BQ25798_WriteRegister(device, BQ25798_REG_INPUT_CURRENT_LIMIT, (uint8_t[]){0x14A}); //3300mA
-
+    // TODO: set limits
     // TODO: configure ADCs and enable other things
-	// all ADCs on by default
-	// precharge current 120mA
-	BQ25798_WriteRegister(device, BQ25798_REG_PRECHARGE_CTRL, (uint8_t[]){0x03});
-	// charger control 0 ICO and HiZ on
-	registerData = 0x8C; // enable charger, HIZ off, IIN
-	BQ25798_WriteRegister(device, BQ25798_REG_CHARGER_CTRL_0, &registerData);
-	// ADC control
-	registerData = 0x80; // all ADCs on
-	BQ25798_WriteRegister(device, BQ25798_REG_ADC_CTRL, &registerData);
 
 
 	return errorsNumber;
-}
-
-
-// Status reading functions charger status 1 thourgh 4 and fault status 0 and 1
-HAL_StatusTypeDef readChargerStatus0(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_0, status);
-}
-HAL_StatusTypeDef readChargerStatus1(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_1, status);
-}
-HAL_StatusTypeDef readChargerStatus2(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_2, status);
-}
-HAL_StatusTypeDef readChargerStatus3(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_3, status);
-}
-HAL_StatusTypeDef readChargerStatus4(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_4, status);
-}
-HAL_StatusTypeDef readFaultStatus0(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_FAULT_STATUS_0, status);
-}
-HAL_StatusTypeDef readFaultStatus1(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_FAULT_STATUS_1, status);
 }
 
 // Read input voltage and current

@@ -1,0 +1,15 @@
+../Core/Src/bq25798.c:9:10:BQ25798_init	2
+../Core/Src/bq25798.c:52:19:readChargerStatus0	1
+../Core/Src/bq25798.c:56:19:readChargerStatus1	1
+../Core/Src/bq25798.c:60:19:readChargerStatus2	1
+../Core/Src/bq25798.c:64:19:readChargerStatus3	1
+../Core/Src/bq25798.c:68:19:readChargerStatus4	1
+../Core/Src/bq25798.c:72:19:readFaultStatus0	1
+../Core/Src/bq25798.c:76:19:readFaultStatus1	1
+../Core/Src/bq25798.c:82:19:readBusVoltage	1
+../Core/Src/bq25798.c:91:19:readBusCurrent	1
+../Core/Src/bq25798.c:102:19:readBatterryVoltage	1
+../Core/Src/bq25798.c:111:19:readBatterryCurrent	1
+../Core/Src/bq25798.c:123:19:BQ25798_ReadRegister	1
+../Core/Src/bq25798.c:135:19:BQ25798_ReadRegisters	1
+../Core/Src/bq25798.c:147:19:BQ25798_WriteRegister	1

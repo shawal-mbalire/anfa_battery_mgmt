@@ -1,0 +1,4 @@
+CompileFlags:
+  Add:
+    - -I/home/shawal/GitHub/anfa_battery_management/battery/Core/Inc
+    - -I/home/shawal/GitHub/anfa_battery_management/battery/Drivers/STM32G0xx_HAL_Driver/Inc
