@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bq25798.h" // Include the BQ25798 driver header
+#include "bq76907.h" // Battery monitor / protector (placeholder driver)
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,6 +35,10 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define BQ_UPDATE_INTERVAL_MS   500 // Update BQ25798 status every 500 milliseconds
+#define BQ76907_UPDATE_INTERVAL_MS  750 // Update cell monitor every 750 ms (staggered)
+#define BALANCE_INTERVAL_MS     5000 // Evaluate balancing every 5 seconds
+#define BALANCE_THRESHOLD_MV    25   // Start balancing if delta > 25mV (placeholder)
+#define BALANCE_HYSTERESIS_MV   10   // Stop when delta < 10mV (placeholder)
 #define ERROR_LED_BLINK_RATE_MS 200 // Blink the error LED every 200 milliseconds
 /* USER CODE END PD */
 
@@ -45,9 +50,20 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-BQ25798 bq25798_charger; // Declare a BQ25798 charger instance
-static uint32_t last_bq_update_tick = 0; // Last time BQ25798 status was updated
-static uint32_t last_error_led_toggle_tick = 0; // Last time the error LED was toggled
+BQ25798 bq25798_charger;              // Charger instance
+BQ76907 bq76907_monitor;              // Monitor instance (placeholder implementation)
+static uint32_t last_bq_update_tick = 0;          // Last charger status update
+static uint32_t last_bq76907_update_tick = 0;     // Last monitor update
+static uint32_t last_balance_eval_tick = 0;       // Last balancing evaluation
+static uint32_t last_error_led_toggle_tick = 0;   // Last time the error LED was toggled
+
+// Forward static helpers
+static void UpdateCharger(void);
+static void UpdateMonitor(void);
+static void EvaluateBalancing(void);
+static uint16_t findMaxCell(uint16_t *vals, uint8_t count);
+static uint16_t findMinCell(uint16_t *vals, uint8_t count);
+static void applyCellBalancingMask(uint8_t mask);
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -92,54 +108,39 @@ int main(void)
 
   // Initialize the BQ25798 charger
   if (BQ25798_init(&bq25798_charger, &hi2c1) != 0) {
-      // Initialization failed, immediately enter error state
-      Error_Handler();
+    Error_Handler();
+  }
+  // Initialize the BQ76907 monitor (placeholder init – returns 0 on success)
+  if (BQ76907_init(&bq76907_monitor, &hi2c1) != 0) {
+    // If monitor init fails we continue charger operation but could flag a warning
+    // For now treat as critical
+    Error_Handler();
   }
 
-  // Initialize last update tick to current time for immediate first update
-  last_bq_update_tick = HAL_GetTick();
+  // Initialize timers for immediate first update
+  uint32_t now = HAL_GetTick();
+  last_bq_update_tick       = now;
+  last_bq76907_update_tick  = now;
+  last_balance_eval_tick    = now;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      // --- Non-blocking BQ25798 Status Update ---
-      // Check if BQ_UPDATE_INTERVAL_MS has passed since the last update
-      if ((HAL_GetTick() - last_bq_update_tick) >= BQ_UPDATE_INTERVAL_MS)
-      {
-          // Reset the timer for the next update
-          last_bq_update_tick = HAL_GetTick();
-
-          // Declare a status variable for each read operation
-          uint8_t read_status_byte = 0;
-
-          // Read all status registers and populate the bq25798_charger struct
-          // Check return values for I2C errors for more robust error handling if needed
-          readChargerStatus0(&bq25798_charger, &read_status_byte);
-          readChargerStatus1(&bq25798_charger, &read_status_byte);
-          readChargerStatus2(&bq25798_charger, &read_status_byte);
-          readChargerStatus3(&bq25798_charger, &read_status_byte);
-          readChargerStatus4(&bq25798_charger, &read_status_byte);
-          readFaultStatus0(&bq25798_charger, &read_status_byte);
-          readFaultStatus1(&bq25798_charger, &read_status_byte);
-
-          // --- Read ADC values to update voltage and current data ---
-          BQ25798_readBusVoltage(&bq25798_charger);
-          BQ25798_readBusCurrent(&bq25798_charger);
-          BQ25798_readBatteryVoltage(&bq25798_charger);
-          BQ25798_readBatteryCurrent(&bq25798_charger);
-
-          // --- Example: Act on the status flags (Green LED for battery presence) ---
-          if (bq25798_charger.chargerStatus2.vbat_present_stat == 1) {
-              HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET); // Green LED ON (assuming active low)
-          } else {
-              HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);   // Green LED OFF
-          }
-
-          // You can add more logic here based on other status flags
-          // For example, if (bq25798_charger.chargerStatus1.chg_stat == 0x3) { /* Fast charging */ }
-      }
+    uint32_t tick = HAL_GetTick();
+    if ((tick - last_bq_update_tick) >= BQ_UPDATE_INTERVAL_MS) {
+      last_bq_update_tick = tick;
+      UpdateCharger();
+    }
+    if ((tick - last_bq76907_update_tick) >= BQ76907_UPDATE_INTERVAL_MS) {
+      last_bq76907_update_tick = tick;
+      UpdateMonitor();
+    }
+    if ((tick - last_balance_eval_tick) >= BALANCE_INTERVAL_MS) {
+      last_balance_eval_tick = tick;
+      EvaluateBalancing();
+    }
 
       // --- Non-blocking Error LED (Orange LED) handling ---
       // This is for demonstration, assuming GPIO_PIN_5 (orange LED) is for a general fault indicator.
@@ -206,6 +207,78 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+// ---------------- Internal helper implementations ----------------
+
+static void UpdateCharger(void) {
+  uint8_t b=0;
+  readChargerStatus0(&bq25798_charger, &b);
+  readChargerStatus1(&bq25798_charger, &b);
+  readChargerStatus2(&bq25798_charger, &b);
+  readChargerStatus3(&bq25798_charger, &b);
+  readChargerStatus4(&bq25798_charger, &b);
+  readFaultStatus0(&bq25798_charger, &b);
+  readFaultStatus1(&bq25798_charger, &b);
+  BQ25798_readBusVoltage(&bq25798_charger);
+  BQ25798_readBusCurrent(&bq25798_charger);
+  BQ25798_readBatteryVoltage(&bq25798_charger);
+  BQ25798_readBatteryCurrent(&bq25798_charger);
+
+  if (bq25798_charger.chargerStatus2.vbat_present_stat == 1) {
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+  } else {
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+  }
+}
+
+static void UpdateMonitor(void) {
+  // Read system status & cell voltages
+  BQ76907_readSystemStatus(&bq76907_monitor);
+  BQ76907_readCellVoltages(&bq76907_monitor);
+  BQ76907_readPackVoltage(&bq76907_monitor);
+  BQ76907_readTemperature1(&bq76907_monitor);
+  // Future: add fault LED logic based on monitor faults
+}
+
+static uint16_t findMaxCell(uint16_t *vals, uint8_t count) {
+  uint16_t m = 0; for (uint8_t i=0;i<count;i++) if (vals[i] > m) m = vals[i]; return m;
+}
+static uint16_t findMinCell(uint16_t *vals, uint8_t count) {
+  uint16_t m = 0xFFFF; for (uint8_t i=0;i<count;i++) if (vals[i] < m) m = vals[i]; return m;
+}
+
+static void EvaluateBalancing(void) {
+  // Placeholder simple balancing: compute delta and decide a mask
+  uint8_t cellCount = 5; // placeholder variant
+  uint16_t vmax = findMaxCell(bq76907_monitor.cellVoltage_mV, cellCount);
+  uint16_t vmin = findMinCell(bq76907_monitor.cellVoltage_mV, cellCount);
+  uint16_t delta = vmax - vmin;
+  static uint8_t balancingActive = 0;
+
+  if (!balancingActive) {
+    if (delta > BALANCE_THRESHOLD_MV) {
+      // Select all cells above (vmin + (delta/2)) as a naive approach
+      uint16_t cutoff = vmin + (delta/2);
+      uint8_t mask = 0;
+      for (uint8_t i=0;i<cellCount;i++) {
+        if (bq76907_monitor.cellVoltage_mV[i] > cutoff) mask |= (1u << i);
+      }
+      applyCellBalancingMask(mask);
+      balancingActive = 1;
+    }
+  } else {
+    if (delta < BALANCE_HYSTERESIS_MV) {
+      applyCellBalancingMask(0); // turn off
+      balancingActive = 0;
+    }
+  }
+}
+
+static void applyCellBalancingMask(uint8_t mask) {
+  // Placeholder: would write mask bits into CELLBAL1/2 registers after verification.
+  // Splitting across two registers if needed (e.g., lower 3 bits in CELLBAL1, next in CELLBAL2).
+  (void)mask; // suppress unused warning until implemented
+}
 
 /* USER CODE END 4 */
 
