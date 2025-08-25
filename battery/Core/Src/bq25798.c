@@ -47,39 +47,103 @@ uint8_t  BQ25798_init(BQ25798 *device, I2C_HandleTypeDef *i2cHandle){
 	return errorsNumber;
 }
 
-
-// Status reading functions charger status 1 thourgh 4 and fault status 0 and 1
+// Read and interpret REG1B_Charger_Status_0
 HAL_StatusTypeDef readChargerStatus0(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_0, status);
+    HAL_StatusTypeDef ret_val = BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_0, status);
+    if (ret_val == HAL_OK) {
+        device->chargerStatus0.iindpm_stat       = (*status >> 7) & 0x01;
+        device->chargerStatus0.vindpm_stat       = (*status >> 6) & 0x01;
+        device->chargerStatus0.wd_stat           = (*status >> 5) & 0x01;
+        device->chargerStatus0.pg_stat           = (*status >> 3) & 0x01;
+        device->chargerStatus0.ac2_present_stat  = (*status >> 2) & 0x01;
+        device->chargerStatus0.ac1_present_stat  = (*status >> 1) & 0x01;
+        device->chargerStatus0.vbus_present_stat = (*status >> 0) & 0x01;
+    }
+    return ret_val;
 }
+
+// Read and interpret REG1C_Charger_Status_1
 HAL_StatusTypeDef readChargerStatus1(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_1, status);
+    HAL_StatusTypeDef ret_val = BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_1, status);
+    if (ret_val == HAL_OK) {
+        device->chargerStatus1.chg_stat        = (*status >> 5) & 0x07;
+        device->chargerStatus1.vbus_stat       = (*status >> 1) & 0x0F;
+        device->chargerStatus1.bc12_done_stat  = (*status >> 0) & 0x01;
+    }
+    return ret_val;
 }
+
+// Read and interpret REG1D_Charger_Status_2
 HAL_StatusTypeDef readChargerStatus2(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_2, status);
+    HAL_StatusTypeDef ret_val = BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_2, status);
+    if (ret_val == HAL_OK) {
+        device->chargerStatus2.ico_stat          = (*status >> 6) & 0x03;
+        device->chargerStatus2.treg_stat         = (*status >> 2) & 0x01;
+        device->chargerStatus2.dpdm_stat         = (*status >> 1) & 0x01;
+        device->chargerStatus2.vbat_present_stat = (*status >> 0) & 0x01;
+    }
+    return ret_val;
 }
+
+// Read and interpret REG1E_Charger_Status_3
 HAL_StatusTypeDef readChargerStatus3(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_3, status);
+    HAL_StatusTypeDef ret_val = BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_3, status);
+    if (ret_val == HAL_OK) {
+        device->chargerStatus3.acrb2_stat      = (*status >> 7) & 0x01;
+        device->chargerStatus3.acrb1_stat      = (*status >> 6) & 0x01;
+        device->chargerStatus3.adc_done_stat   = (*status >> 5) & 0x01;
+        device->chargerStatus3.vsys_stat       = (*status >> 4) & 0x01;
+        device->chargerStatus3.chg_tmr_stat    = (*status >> 3) & 0x01;
+        device->chargerStatus3.trichg_tmr_stat = (*status >> 2) & 0x01;
+        device->chargerStatus3.prechg_tmr_stat = (*status >> 1) & 0x01;
+    }
+    return ret_val;
 }
+
+// Read and interpret REG1F_Charger_Status_4
 HAL_StatusTypeDef readChargerStatus4(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_4, status);
+    HAL_StatusTypeDef ret_val = BQ25798_ReadRegister(device, BQ25798_REG_CHARGER_STATUS_4, status);
+    if (ret_val == HAL_OK) {
+        device->chargerStatus4.vbatotg_low_stat = (*status >> 4) & 0x01;
+        device->chargerStatus4.ts_cold_stat     = (*status >> 3) & 0x01;
+        device->chargerStatus4.ts_cool_stat     = (*status >> 2) & 0x01;
+        device->chargerStatus4.ts_warm_stat     = (*status >> 1) & 0x01;
+        device->chargerStatus4.ts_hot_stat      = (*status >> 0) & 0x01;
+    }
+    return ret_val;
 }
+
+// Read and interpret REG20_FAULT_Status_0
 HAL_StatusTypeDef readFaultStatus0(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_FAULT_STATUS_0, status);
+    HAL_StatusTypeDef ret_val = BQ25798_ReadRegister(device, BQ25798_REG_FAULT_STATUS_0, status);
+    if (ret_val == HAL_OK) {
+        device->faultStatus0.ibat_reg_stat  = (*status >> 7) & 0x01;
+        device->faultStatus0.vbus_ovp_stat  = (*status >> 6) & 0x01;
+        device->faultStatus0.vbat_ovp_stat  = (*status >> 5) & 0x01;
+        device->faultStatus0.ibus_ocp_stat  = (*status >> 4) & 0x01;
+        device->faultStatus0.ibat_ocp_stat  = (*status >> 3) & 0x01;
+        device->faultStatus0.conv_ocp_stat  = (*status >> 2) & 0x01;
+        device->faultStatus0.vac2_ovp_stat  = (*status >> 1) & 0x01;
+        device->faultStatus0.vac1_ovp_stat  = (*status >> 0) & 0x01;
+    }
+    return ret_val;
 }
+
+// Read and interpret REG21_FAULT_Status_1
 HAL_StatusTypeDef readFaultStatus1(BQ25798 *device, uint8_t *status){
-	// TODO intepret this status data and append to the device struct
-	return BQ25798_ReadRegister(device, BQ25798_REG_FAULT_STATUS_1, status);
+    HAL_StatusTypeDef ret_val = BQ25798_ReadRegister(device, BQ25798_REG_FAULT_STATUS_1, status);
+    if (ret_val == HAL_OK) {
+        device->faultStatus1.vsys_short_stat = (*status >> 7) & 0x01;
+        device->faultStatus1.vsys_ovp_stat   = (*status >> 6) & 0x01;
+        device->faultStatus1.otg_ovp_stat    = (*status >> 5) & 0x01;
+        device->faultStatus1.otg_uvp_stat    = (*status >> 4) & 0x01;
+        device->faultStatus1.tshut_stat      = (*status >> 2) & 0x01;
+    }
+    return ret_val;
 }
 
 // Read input voltage and current
-HAL_StatusTypeDef readBusVoltage(BQ25798 *device){
+HAL_StatusTypeDef BQ25798_readBusVoltage(BQ25798 *device){
 	// Read raw values from voltage registers (16 bits)
 	// we have a 16 bit ADC but 8bit RAM thus we read 2 addresses instead
 	uint8_t registerData[2];
@@ -88,7 +152,7 @@ HAL_StatusTypeDef readBusVoltage(BQ25798 *device){
 	device->voltageBus = voltageRaw; // in mV
 	return status;
 }
-HAL_StatusTypeDef readBusCurrent(BQ25798 *device){
+HAL_StatusTypeDef BQ25798_readBusCurrent(BQ25798 *device){
 	// Read raw values from voltage registers (16 bits)
 	// we have a 16 bit ADC but 8bit RAM thus we read 2 addresses instead
 	uint8_t registerData[2];
@@ -99,7 +163,7 @@ HAL_StatusTypeDef readBusCurrent(BQ25798 *device){
 }
 // Read output/ battery voltage and current
 
-HAL_StatusTypeDef readBatterryVoltage(BQ25798 *device){
+HAL_StatusTypeDef BQ25798_readBatteryVoltage(BQ25798 *device){
 	// Read raw values from voltage registers (16 bits)
 	// we have a 16 bit ADC but 8bit RAM thus we read 2 addresses instead
 	uint8_t registerData[2];
@@ -108,7 +172,7 @@ HAL_StatusTypeDef readBatterryVoltage(BQ25798 *device){
 	device->voltageBattery = voltageRaw; // in mV
 	return status;
 }
-HAL_StatusTypeDef readBatterryCurrent(BQ25798 *device){
+HAL_StatusTypeDef BQ25798_readBatteryCurrent(BQ25798 *device){
 	// Read raw values from voltage registers (16 bits)
 	// we have a 16 bit ADC but 8bit RAM thus we read 2 addresses instead
 	uint8_t registerData[2];

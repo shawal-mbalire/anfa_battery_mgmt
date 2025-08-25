@@ -80,22 +80,89 @@
 #define BQ25798_REG_PART_INFO              (0x48)  /**< Read-only register for device part number and revision. */
 
 // Structs
+#include <stdint.h>
+
+// REG1B_Charger_Status_0 Register (Offset = 1Bh)
+typedef struct {
+    uint8_t iindpm_stat;       // Bit 7: IINDPM status
+    uint8_t vindpm_stat;       // Bit 6: VINDPM status
+    uint8_t wd_stat;           // Bit 5: Watchdog timer status
+    uint8_t pg_stat;           // Bit 3: Power Good Status
+    uint8_t ac2_present_stat;  // Bit 2: VAC2 present status
+    uint8_t ac1_present_stat;  // Bit 1: VAC1 present status
+    uint8_t vbus_present_stat; // Bit 0: VBUS present status
+} BQ25798_ChargerStatus0;
+#include <stdint.h>
+
+// REG1C_Charger_Status_1 Register (Offset = 1Ch)
+typedef struct {
+    uint8_t chg_stat;         // Bits 7-5: Charge Status
+    uint8_t vbus_stat;        // Bits 4-1: VBUS Status
+    uint8_t bc12_done_stat;   // Bit 0: BC1.2 status
+} BQ25798_ChargerStatus1;
+// REG1D_Charger_Status_2 Register
+typedef struct {
+    uint8_t ico_stat;          // Bits 7-6
+    uint8_t treg_stat;         // Bit 2
+    uint8_t dpdm_stat;         // Bit 1
+    uint8_t vbat_present_stat; // Bit 0
+} BQ25798_ChargerStatus2;
+
+// REG1E_Charger_Status_3 Register
+typedef struct {
+    uint8_t acrb2_stat;      // Bit 7
+    uint8_t acrb1_stat;      // Bit 6
+    uint8_t adc_done_stat;   // Bit 5
+    uint8_t vsys_stat;       // Bit 4
+    uint8_t chg_tmr_stat;    // Bit 3
+    uint8_t trichg_tmr_stat; // Bit 2
+    uint8_t prechg_tmr_stat; // Bit 1
+} BQ25798_ChargerStatus3;
+
+// REG1F_Charger_Status_4 Register
+typedef struct {
+    uint8_t vbatotg_low_stat; // Bit 4
+    uint8_t ts_cold_stat;     // Bit 3
+    uint8_t ts_cool_stat;     // Bit 2
+    uint8_t ts_warm_stat;     // Bit 1
+    uint8_t ts_hot_stat;      // Bit 0
+} BQ25798_ChargerStatus4;
+// REG20_FAULT_Status_0 Register
+typedef struct {
+    uint8_t ibat_reg_stat;  // Bit 7
+    uint8_t vbus_ovp_stat;  // Bit 6
+    uint8_t vbat_ovp_stat;  // Bit 5
+    uint8_t ibus_ocp_stat;  // Bit 4
+    uint8_t ibat_ocp_stat;  // Bit 3
+    uint8_t conv_ocp_stat;  // Bit 2
+    uint8_t vac2_ovp_stat;  // Bit 1
+    uint8_t vac1_ovp_stat;  // Bit 0
+} BQ25798_FaultStatus0;
+
+// REG21_FAULT_Status_1 Register
+typedef struct {
+    uint8_t vsys_short_stat; // Bit 7
+    uint8_t vsys_ovp_stat;   // Bit 6
+    uint8_t otg_ovp_stat;    // Bit 5
+    uint8_t otg_uvp_stat;    // Bit 4
+    uint8_t tshut_stat;      // Bit 2
+} BQ25798_FaultStatus1;
+
 typedef struct{
 	I2C_HandleTypeDef *i2cHandle;
 	uint16_t voltageBus;      // in mV
 	uint16_t currentBus;     // in mA
 	uint16_t voltageBattery;  // in mV
 	uint16_t currentBattery; // in mA
+
+	BQ25798_ChargerStatus0 chargerStatus0;
+	BQ25798_ChargerStatus1 chargerStatus1;
+	BQ25798_ChargerStatus2 chargerStatus2;
+	BQ25798_ChargerStatus3 chargerStatus3;
+	BQ25798_ChargerStatus4 chargerStatus4;
+	BQ25798_FaultStatus0 faultStatus0;
+	BQ25798_FaultStatus1 faultStatus1;
 } BQ25798;
-// states
-typedef enum {
-	BQ25798_STATE_INIT = 0,          // Initial state
-	BQ25798_STATE_READ_VOLTAGE,      // Reading bus voltage
-	BQ25798_STATE_READ_CURRENT,      // Reading bus current
-	BQ25798_STATE_READ_BATTERY_VOLTAGE, // Reading battery voltage
-	BQ25798_STATE_READ_BATTERY_CURRENT, // Reading battery current
-	BQ25798_STATE_ERROR               // Error state
-} BQ25798_State;
 
 // INITIALISATION
 
@@ -112,4 +179,13 @@ HAL_StatusTypeDef BQ25798_readBatteryCurrent(BQ25798 *device);
 HAL_StatusTypeDef BQ25798_ReadRegisters(BQ25798 *device, uint8_t reg, uint8_t *data, uint8_t length);
 HAL_StatusTypeDef BQ25798_ReadRegister (BQ25798 *device, uint8_t reg, uint8_t *data);
 HAL_StatusTypeDef BQ25798_WriteRegister(BQ25798 *device, uint8_t reg, uint8_t *data);
+HAL_StatusTypeDef readChargerStatus0(BQ25798 *device, uint8_t *status);
+HAL_StatusTypeDef readChargerStatus1(BQ25798 *device, uint8_t *status);
+HAL_StatusTypeDef readChargerStatus2(BQ25798 *device, uint8_t *status);
+HAL_StatusTypeDef readChargerStatus3(BQ25798 *device, uint8_t *status);
+HAL_StatusTypeDef readChargerStatus4(BQ25798 *device, uint8_t *status);
+HAL_StatusTypeDef readFaultStatus0(BQ25798 *device, uint8_t *status);
+HAL_StatusTypeDef readFaultStatus1(BQ25798 *device, uint8_t *status);
+
+
 #endif /* INC_BQ25798_H_ */

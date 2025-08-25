@@ -33,7 +33,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define BQ_UPDATE_INTERVAL_MS   500 // Update BQ25798 status every 500 milliseconds
+#define ERROR_LED_BLINK_RATE_MS 200 // Blink the error LED every 200 milliseconds
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,6 +46,8 @@
 
 /* USER CODE BEGIN PV */
 BQ25798 bq25798_charger; // Declare a BQ25798 charger instance
+static uint32_t last_bq_update_tick = 0; // Last time BQ25798 status was updated
+static uint32_t last_error_led_toggle_tick = 0; // Last time the error LED was toggled
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -63,7 +66,6 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
   /* USER CODE END 1 */
 
@@ -90,14 +92,72 @@ int main(void)
 
   // Initialize the BQ25798 charger
   if (BQ25798_init(&bq25798_charger, &hi2c1) != 0) {
-  // Initialization failed, handle error
-  Error_Handler();
+      // Initialization failed, immediately enter error state
+      Error_Handler();
+  }
+
+  // Initialize last update tick to current time for immediate first update
+  last_bq_update_tick = HAL_GetTick();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+      // --- Non-blocking BQ25798 Status Update ---
+      // Check if BQ_UPDATE_INTERVAL_MS has passed since the last update
+      if ((HAL_GetTick() - last_bq_update_tick) >= BQ_UPDATE_INTERVAL_MS)
+      {
+          // Reset the timer for the next update
+          last_bq_update_tick = HAL_GetTick();
+
+          // Declare a status variable for each read operation
+          uint8_t read_status_byte = 0;
+
+          // Read all status registers and populate the bq25798_charger struct
+          // Check return values for I2C errors for more robust error handling if needed
+          readChargerStatus0(&bq25798_charger, &read_status_byte);
+          readChargerStatus1(&bq25798_charger, &read_status_byte);
+          readChargerStatus2(&bq25798_charger, &read_status_byte);
+          readChargerStatus3(&bq25798_charger, &read_status_byte);
+          readChargerStatus4(&bq25798_charger, &read_status_byte);
+          readFaultStatus0(&bq25798_charger, &read_status_byte);
+          readFaultStatus1(&bq25798_charger, &read_status_byte);
+
+          // --- Read ADC values to update voltage and current data ---
+          BQ25798_readBusVoltage(&bq25798_charger);
+          BQ25798_readBusCurrent(&bq25798_charger);
+          BQ25798_readBatteryVoltage(&bq25798_charger);
+          BQ25798_readBatteryCurrent(&bq25798_charger);
+
+          // --- Example: Act on the status flags (Green LED for battery presence) ---
+          if (bq25798_charger.chargerStatus2.vbat_present_stat == 1) {
+              HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET); // Green LED ON (assuming active low)
+          } else {
+              HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);   // Green LED OFF
+          }
+
+          // You can add more logic here based on other status flags
+          // For example, if (bq25798_charger.chargerStatus1.chg_stat == 0x3) { /* Fast charging */ }
+      }
+
+      // --- Non-blocking Error LED (Orange LED) handling ---
+      // This is for demonstration, assuming GPIO_PIN_5 (orange LED) is for a general fault indicator.
+      // You would typically turn this on or blink it in your Error_Handler or if a specific fault is detected.
+      if (bq25798_charger.faultStatus1.tshut_stat == 1) {
+          if ((HAL_GetTick() - last_error_led_toggle_tick) >= ERROR_LED_BLINK_RATE_MS) {
+              last_error_led_toggle_tick = HAL_GetTick();
+              HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); // Toggle Orange LED
+          }
+      } else {
+          HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET); // Keep Orange LED OFF (assuming active low)
+      }
+
+
+      /* Add other non-blocking tasks here */
+      // e.g., Read sensors, process user input, update displays, communicate over other peripherals
+      // These tasks will execute continuously while the BQ25798 update timer is counting down.
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -157,35 +217,25 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
+  __disable_irq(); // Disable interrupts to prevent further execution
+
+  // In a critical error, often you halt or reset the system.
+  // For a robust system, you might try a limited number of I2C reinitialization attempts.
+  // For this example, we'll blink an LED indefinitely to signal an error.
+
+  // Assuming an LED (e.g., on GPIOA, PIN_5) is available for error indication
+  // Make sure this pin is initialized in MX_GPIO_Init()
   while (1)
   {
-	  	// Stay in this loop in case of error
-	// You can add code here to blink an LED or send a message over UART for debugging
-	  if (bq25798_charger.i2cHandle->ErrorCode != HAL_I2C_ERROR_NONE) {
-		  	    // Handle I2C error
-	    // For example, you can reset the I2C peripheral or log the error
-	    HAL_I2C_DeInit(bq25798_charger.i2cHandle);
-	    HAL_I2C_Init(bq25798_charger.i2cHandle); // Reinitialize I2C
-	  }
-	  // Optionally, you can add a delay or toggle an LED to indicate an error state
-	  HAL_Delay(1000); // Delay for 1 second
-	  // You can also add code to reset the microcontroller if needed
-	  // HAL_NVIC_SystemReset(); // Uncomment to reset the microcontroller
-	  // Or you can log the error to a UART or other communication interface
-	  // For example, you can use printf or HAL_UART_Transmit to send an error message
-	  // printf("Error occurred in BQ25798 initialization or operation.\n");
-	  // HAL_UART_Transmit(&huart1, (uint8_t *)"Error occurred in BQ25798 initialization or operation.\n", strlen("Error occurred in BQ25798 initialization or operation.\n"), HAL_MAX_DELAY);
-	  // Note: Ensure that the UART is initialized before using it
-
-  }
+      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5); // Toggle an LED to indicate error
+      HAL_Delay(100); // Small delay for visible blinking
   }
   /* USER CODE END Error_Handler_Debug */
 }
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
+  * where the assert_param error has occurred.
   * @param  file: pointer to the source file name
   * @param  line: assert_param error line source number
   * @retval None
