@@ -10,10 +10,10 @@
 uint8_t  BQ25798_init(BQ25798 *device, I2C_HandleTypeDef *i2cHandle){
 	device->i2cHandle = i2cHandle;
 
-	uint8_t raw=0, part=0, rev=0;
-	int rc = BQ25798_confirmPart(device, &raw, &part, &rev);
-	if (rc != BQ25798_OK) {
-		return 255; /* legacy error code path; consider replacing with enum */
+	BQ25798_PartInfo idInfo;
+	BQ25798_Result idRes = BQ25798_confirmPart(device, &idInfo);
+	if (idRes != BQ25798_OK) {
+		return 255; /* legacy error code path; consider replacing with enum everywhere */
 	}
 
 	/* Configuration writes (placeholders; TODO: replace magic values with masks) */
@@ -44,20 +44,36 @@ uint8_t  BQ25798_init(BQ25798 *device, I2C_HandleTypeDef *i2cHandle){
 }
 
 /* ================= Part Info & Helpers ================= */
-void BQ25798_decodePartInfo(uint8_t raw, uint8_t *partNum, uint8_t *revNum){
-	if (partNum) *partNum = (raw & BQ25798_PART_INFO_PART_MASK) >> BQ25798_PART_INFO_PART_SHIFT;
-	if (revNum)  *revNum  = (raw & BQ25798_PART_INFO_REV_MASK);
+void BQ25798_decodePartInfo(uint8_t raw, BQ25798_PartInfo *out){
+	if (!out) return;
+	out->raw      = raw;
+	out->part3bit = (raw & BQ25798_PART_INFO_PART_MASK)  >> BQ25798_PART_INFO_PART_SHIFT; /* legacy 3-bit */
+	out->part5bit = (raw & BQ25798_PART_INFO_PART5_MASK) >> BQ25798_PART_INFO_PART5_SHIFT; /* proposed full */
+	out->rev      = (raw & BQ25798_PART_INFO_REV_MASK);
 }
 
-int BQ25798_confirmPart(BQ25798 *device, uint8_t *rawVal, uint8_t *partNum, uint8_t *revNum){
+BQ25798_Result BQ25798_confirmPart(BQ25798 *device, BQ25798_PartInfo *infoOut){
 	uint8_t v;
 	if (BQ25798_ReadRegister(device, BQ25798_REG_PART_INFO, &v) != HAL_OK) return BQ25798_ERR_I2C;
-	uint8_t p, r; BQ25798_decodePartInfo(v, &p, &r);
-	if (rawVal)  *rawVal = v;
-	if (partNum) *partNum = p;
-	if (revNum)  *revNum = r;
-	if (p != BQ25798_PART_NUM_VAL || r != BQ25798_DEV_REV_VAL) return BQ25798_ERR_ID_MISMATCH;
+	BQ25798_PartInfo tmp; BQ25798_decodePartInfo(v, &tmp);
+	/* Validation strategy: accept if either legacy 3-bit matches AND rev matches, OR 5-bit matches (once verified). */
+	int legacy_ok = (tmp.part3bit == BQ25798_PART_NUM_VAL) && (tmp.rev == BQ25798_DEV_REV_VAL);
+	int full_ok   = (tmp.part5bit == BQ25798_EXPECTED_PARTNUM_5BIT) && (tmp.rev == BQ25798_EXPECTED_REVISION);
+	if (!(legacy_ok || full_ok)) {
+		if (infoOut) *infoOut = tmp; /* still return captured info for diagnostics */
+		return BQ25798_ERR_ID_MISMATCH;
+	}
+	if (infoOut) *infoOut = tmp;
 	return BQ25798_OK;
+}
+
+/* Legacy wrapper */
+int BQ25798_confirmPart_Legacy(BQ25798 *device, uint8_t *rawVal, uint8_t *partNum, uint8_t *revNum){
+	BQ25798_PartInfo info; BQ25798_Result r = BQ25798_confirmPart(device, &info);
+	if (rawVal)  *rawVal  = info.raw;
+	if (partNum) *partNum = info.part3bit; /* preserve previous behavior */
+	if (revNum)  *revNum  = info.rev;
+	return r; /* relies on enum being compatible with previous int usage (negative on error) */
 }
 
 /* ================= 16-bit Access Helpers ================= */
@@ -244,4 +260,86 @@ HAL_StatusTypeDef BQ25798_WriteRegister(BQ25798 *device, uint8_t reg, uint8_t *d
 			HAL_MAX_DELAY
 	);
 
+}
+
+/* ================= High-Level Control / Profile Functions ================= */
+HAL_StatusTypeDef BQ25798_setChargeVoltage(BQ25798 *dev, uint16_t mV){
+	uint16_t raw = BQ25798_encodeChargeVoltage_mV(mV);
+	return BQ25798_Write16(dev, BQ25798_REG_CHARGE_VOLTAGE_LIMIT, raw);
+}
+HAL_StatusTypeDef BQ25798_setChargeCurrent(BQ25798 *dev, uint16_t mA){
+	uint16_t raw = BQ25798_encodeChargeCurrent_mA(mA);
+	return BQ25798_Write16(dev, BQ25798_REG_CHARGE_CURRENT_LIMIT, raw);
+}
+HAL_StatusTypeDef BQ25798_setInputCurrentLimit(BQ25798 *dev, uint16_t mA){
+	uint16_t raw = BQ25798_encodeInputCurrent_mA(mA);
+	return BQ25798_Write16(dev, BQ25798_REG_INPUT_CURRENT_LIMIT, raw);
+}
+HAL_StatusTypeDef BQ25798_chargerEnable(BQ25798 *dev, uint8_t enable){
+	uint8_t reg;
+	if (BQ25798_ReadRegister(dev, BQ25798_REG_CHARGER_CTRL_0, &reg) != HAL_OK) return HAL_ERROR;
+	if (enable) reg |= BQ25798_CHG_CTRL0_CHG_EN; else reg &= ~BQ25798_CHG_CTRL0_CHG_EN;
+	return BQ25798_WriteRegister(dev, BQ25798_REG_CHARGER_CTRL_0, &reg);
+}
+/* Charge profile logic (placeholder thresholds):
+ * - VBAT < 3000 mV: pre-charge 100 mA
+ * - 3000 mV <= VBAT < 3650 mV: fast charge 5000 mA
+ * - VBAT >= 3650 mV: reduce current (taper) to 1000 mA
+ */
+HAL_StatusTypeDef BQ25798_updateChargeProfile(BQ25798 *dev){
+	if (BQ25798_readBatteryVoltage(dev) != HAL_OK) return HAL_ERROR;
+	uint16_t vbatt = dev->voltageBattery; /* mV */
+	uint16_t targetCurrent_mA;
+	if (vbatt < 3000) targetCurrent_mA = 100;        /* pre-charge */
+	else if (vbatt < 3650) targetCurrent_mA = 5000;  /* fast charge */
+	else targetCurrent_mA = 1000;                    /* taper */
+	return BQ25798_setChargeCurrent(dev, targetCurrent_mA);
+}
+HAL_StatusTypeDef BQ25798_readDieTemperature(BQ25798 *dev, int16_t *tempC_x10){
+	uint8_t buf[2];
+	if (BQ25798_ReadRegisters(dev, BQ25798_REG_TDIE_ADC, buf, 2) != HAL_OK) return HAL_ERROR;
+	uint16_t raw = (buf[0] << 8) | buf[1];
+	/* Placeholder: assume 1 LSB = 0.1C */
+	if (tempC_x10) *tempC_x10 = (int16_t)raw; /* TODO: scale */
+	return HAL_OK;
+}
+HAL_StatusTypeDef BQ25798_thermalGuard(BQ25798 *dev, int16_t tempC_x10_min, int16_t tempC_x10_max){
+	int16_t t;
+	if (BQ25798_readDieTemperature(dev, &t) != HAL_OK) return HAL_ERROR;
+	if (t < tempC_x10_min || t > tempC_x10_max){
+		return BQ25798_chargerEnable(dev, 0);
+	} else {
+		return BQ25798_chargerEnable(dev, 1);
+	}
+}
+
+/* ================= Debug Dump ================= */
+void BQ25798_debugDump(const BQ25798 *dev){
+    if (!dev){ BQ_LOG("BQ25798: (null device)"); return; }
+    BQ_LOG("BQ25798 Debug Dump:");
+    BQ_LOG("  VBUS  = %u mV",   (unsigned)dev->voltageBus);
+    BQ_LOG("  IBUS  = %u mA",   (unsigned)dev->currentBus);
+    BQ_LOG("  VBAT  = %u mV",   (unsigned)dev->voltageBattery);
+    BQ_LOG("  IBAT  = %u mA",   (unsigned)dev->currentBattery);
+    BQ_LOG("  CHG_STAT0: iindpm=%u vindpm=%u wd=%u pg=%u ac2=%u ac1=%u vbus=%u",
+	    dev->chargerStatus0.iindpm_stat,
+	    dev->chargerStatus0.vindpm_stat,
+	    dev->chargerStatus0.wd_stat,
+	    dev->chargerStatus0.pg_stat,
+	    dev->chargerStatus0.ac2_present_stat,
+	    dev->chargerStatus0.ac1_present_stat,
+	    dev->chargerStatus0.vbus_present_stat);
+    BQ_LOG("  CHG_STAT1: chg=%u vbus=%u bc12=%u",
+	    dev->chargerStatus1.chg_stat,
+	    dev->chargerStatus1.vbus_stat,
+	    dev->chargerStatus1.bc12_done_stat);
+    BQ_LOG("  FAULT0: ibat_reg=%u vbus_ovp=%u vbat_ovp=%u ibus_ocp=%u ibat_ocp=%u conv_ocp=%u vac2_ovp=%u vac1_ovp=%u",
+	    dev->faultStatus0.ibat_reg_stat,
+	    dev->faultStatus0.vbus_ovp_stat,
+	    dev->faultStatus0.vbat_ovp_stat,
+	    dev->faultStatus0.ibus_ocp_stat,
+	    dev->faultStatus0.ibat_ocp_stat,
+	    dev->faultStatus0.conv_ocp_stat,
+	    dev->faultStatus0.vac2_ovp_stat,
+	    dev->faultStatus0.vac1_ovp_stat);
 }

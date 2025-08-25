@@ -8,6 +8,10 @@
 #ifndef INC_BQ25798_H_
 #define INC_BQ25798_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "stm32g0xx_hal.h" /* needed for I2C / HAL_StatusTypeDef */
 #include <stdint.h>
 
@@ -205,12 +209,65 @@ HAL_StatusTypeDef readFaultStatus0(BQ25798 *device, uint8_t *status);
 HAL_StatusTypeDef readFaultStatus1(BQ25798 *device, uint8_t *status);
 
 /* Part confirmation & helpers */
-int  BQ25798_confirmPart(BQ25798 *device, uint8_t *rawVal, uint8_t *partNum, uint8_t *revNum);
-void BQ25798_decodePartInfo(uint8_t raw, uint8_t *partNum, uint8_t *revNum);
+/* NOTE: Datasheet review indicates PART_INFO may allocate 5 bits (bits 7:3) for part number, not 3.
+ * Current masks below (0x38) only cover bits 5:3 (3 bits) and are LIKELY INCOMPLETE.
+ * To mitigate mis-identification, we add an extended mask (0xF8) and decode with that while
+ * retaining legacy defines for now. Update EXPECTED_PART_NUM_5BIT once confirmed.
+ */
+typedef struct {
+    uint8_t raw;       /* raw PART_INFO register */
+    uint8_t part3bit;  /* legacy 3-bit extraction (bits5:3) */
+    uint8_t part5bit;  /* proposed full 5-bit extraction (bits7:3) */
+    uint8_t rev;       /* revision (bits2:0) */
+} BQ25798_PartInfo;
+
+#define BQ25798_PART_INFO_PART5_MASK  0xF8u /* bits 7:3 (proposed full part number field) */
+#define BQ25798_PART_INFO_PART5_SHIFT 3
+
+/* Expected values (PLACEHOLDERS) */
+#define BQ25798_EXPECTED_PARTNUM_5BIT 0x18u /* TODO_VERIFY: replace with actual part number bits 7:3 */
+#define BQ25798_EXPECTED_REVISION     BQ25798_DEV_REV_VAL /* reuse existing until verified */
+
+void BQ25798_decodePartInfo(uint8_t raw, BQ25798_PartInfo *out);
+
+/* New confirmation API: returns BQ25798_Result and fills BQ25798_PartInfo (optional) */
+BQ25798_Result BQ25798_confirmPart(BQ25798 *device, BQ25798_PartInfo *infoOut);
+
+/* Deprecated (legacy) signature kept for backward compatibility (will call new API) */
+int BQ25798_confirmPart_Legacy(BQ25798 *device, uint8_t *rawVal, uint8_t *partNum, uint8_t *revNum);
 
 /* 16-bit register helpers (for multi-byte limit registers) */
 HAL_StatusTypeDef BQ25798_Write16(BQ25798 *device, uint8_t msbReg, uint16_t value);
 HAL_StatusTypeDef BQ25798_Read16 (BQ25798 *device, uint8_t msbReg, uint16_t *value);
 
+/* --- Charger Control Bit Masks (placeholders; verify with datasheet) --- */
+#define BQ25798_CHG_CTRL0_CHG_EN    (1u<<7) /* Enable charging */
+#define BQ25798_CHG_CTRL0_HIZ_EN    (1u<<6) /* High impedance mode */
+
+/* Scaling encode helpers (placeholders: adjust LSB sizes) */
+static inline uint16_t BQ25798_encodeChargeVoltage_mV(uint16_t mV){ return mV; /* TODO scale */ }
+static inline uint16_t BQ25798_encodeChargeCurrent_mA(uint16_t mA){ return mA; /* TODO scale */ }
+static inline uint16_t BQ25798_encodeInputCurrent_mA(uint16_t mA){ return mA; /* TODO scale */ }
+
+/* High-level control / profile API */
+HAL_StatusTypeDef BQ25798_setChargeVoltage(BQ25798 *dev, uint16_t mV);
+HAL_StatusTypeDef BQ25798_setChargeCurrent(BQ25798 *dev, uint16_t mA);
+HAL_StatusTypeDef BQ25798_setInputCurrentLimit(BQ25798 *dev, uint16_t mA);
+HAL_StatusTypeDef BQ25798_chargerEnable(BQ25798 *dev, uint8_t enable);
+HAL_StatusTypeDef BQ25798_updateChargeProfile(BQ25798 *dev); /* dynamic current selection based on VBAT */
+HAL_StatusTypeDef BQ25798_thermalGuard(BQ25798 *dev, int16_t tempC_x10_min, int16_t tempC_x10_max); /* disable outside window */
+HAL_StatusTypeDef BQ25798_readDieTemperature(BQ25798 *dev, int16_t *tempC_x10); /* stub */
+
+/* Debug / diagnostics */
+void BQ25798_debugDump(const BQ25798 *dev);
+
+#ifndef BQ_LOG
+#include <stdio.h>
+#define BQ_LOG(fmt, ...) do { printf("[BQ] " fmt "\n", ##__VA_ARGS__); } while(0)
+#endif
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* INC_BQ25798_H_ */

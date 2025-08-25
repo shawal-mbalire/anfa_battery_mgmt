@@ -53,13 +53,11 @@ HAL_StatusTypeDef BQ76907_readSystemStatus(BQ76907 *dev){
 }
 
 /**
- * @brief Read all configured cell voltage registers (assumes 5 cells placeholder).
- * Adjust loop bounds and base address arithmetic if variant differs.
+ * @brief Read all configured cell voltage registers (4s pack per requirements).
+ * Adjust base address arithmetic once actual register map confirmed.
  */
 HAL_StatusTypeDef BQ76907_readCellVoltages(BQ76907 *dev){
-    // Assumes sequential VCELLx registers in big-endian pairs.
-    // TODO: Adjust count & base addresses after validation.
-    for (uint8_t cell = 0; cell < 5; ++cell){
+    for (uint8_t cell = 0; cell < 4; ++cell){
         uint8_t hi, lo;
         uint8_t baseHigh = BQ76907_REG_VCELL1_H + (cell * 2);
         HAL_StatusTypeDef st = BQ76907_ReadRegister(dev, baseHigh, &hi);
@@ -260,5 +258,74 @@ HAL_StatusTypeDef BQ76907_setActiveBalancingMask(BQ76907 *dev, uint8_t cellMask)
 }
 HAL_StatusTypeDef BQ76907_protectionRecovery(BQ76907 *dev, uint8_t mask){
     return BQ76907_WriteRegister(dev, BQ76907_REG_PROT_RECOVERY, mask);
+}
+
+/* ================= Balancing Evaluator ================= */
+uint8_t BQ76907_evaluateAndBalance(BQ76907 *dev, uint16_t deltaStart_mV, uint16_t deltaStop_mV, uint16_t minCell_mV){
+    /* Read latest cell voltages */
+    if (BQ76907_readCellVoltages(dev) != HAL_OK) return 0xFF; /* error sentinel */
+
+    uint16_t maxV = 0, minV = 0xFFFF;
+    for (uint8_t i=0;i<4;i++){
+        uint16_t v = dev->cellVoltage_mV[i];
+        if (v < minV) minV = v;
+        if (v > maxV) maxV = v;
+    }
+    uint16_t spread = maxV - minV;
+    static uint8_t balancingActive = 0; /* simple hysteresis state */
+
+    if (!balancingActive){
+        if (spread >= deltaStart_mV && minV >= minCell_mV){
+            balancingActive = 1;
+        }
+    } else {
+        if (spread <= deltaStop_mV || minV < minCell_mV){
+            balancingActive = 0;
+        }
+    }
+
+    uint8_t mask = 0;
+    if (balancingActive){
+        /* Balance all cells whose voltage is within (maxV - deltaStop_mV/2) of maxV (aggressive) */
+        uint16_t targetFloor = (deltaStop_mV/2 > spread) ? maxV : (maxV - (deltaStop_mV/2));
+        for (uint8_t i=0;i<4;i++){
+            if (dev->cellVoltage_mV[i] >= targetFloor && dev->cellVoltage_mV[i] > minCell_mV){
+                mask |= (1u << i);
+            }
+        }
+    }
+    if (BQ76907_setActiveBalancingMask(dev, mask) != HAL_OK) return 0xFF;
+    return mask;
+}
+
+/* ================= Protection Convenience Wrappers ================= */
+HAL_StatusTypeDef BQ76907_configVoltageProtection(BQ76907 *dev, uint16_t uv_mV, uint16_t ov_mV){
+    HAL_StatusTypeDef st = BQ76907_setCUVThreshold(dev, uv_mV); if (st!=HAL_OK) return st;
+    return BQ76907_setCOVThreshold(dev, ov_mV);
+}
+HAL_StatusTypeDef BQ76907_configCurrentProtection(BQ76907 *dev, uint16_t ocChg_mA, uint16_t ocDis1_mA, uint16_t ocDis2_mA){
+    HAL_StatusTypeDef st = BQ76907_setOCChargeThreshold(dev, ocChg_mA); if (st!=HAL_OK) return st;
+    st = BQ76907_setOCDischarge1Threshold(dev, ocDis1_mA); if (st!=HAL_OK) return st;
+    return BQ76907_setOCDischarge2Threshold(dev, ocDis2_mA);
+}
+HAL_StatusTypeDef BQ76907_configTemperatureProtection(BQ76907 *dev, uint8_t ot_C, uint8_t maxInternal_C){
+    HAL_StatusTypeDef st = BQ76907_setInternalOTThreshold(dev, ot_C); if (st!=HAL_OK) return st;
+    return BQ76907_setMaxInternalTemp(dev, maxInternal_C);
+}
+
+/* ================= Debug Dump ================= */
+void BQ76907_debugDump(const BQ76907 *dev){
+    if (!dev){ BQ_LOG("BQ76907: (null)"); return; }
+    BQ_LOG("BQ76907 Dump: Pack=%u mV T=%d.%uC", (unsigned)dev->packVoltage_mV,
+           dev->ts1_degC_x10/10, (unsigned)(dev->ts1_degC_x10%10));
+    for (int i=0;i<4;i++) BQ_LOG("  Cell%u=%u mV", i+1, (unsigned)dev->cellVoltage_mV[i]);
+    BQ_LOG("  Flags: OV=%u UV=%u OCD=%u SCD=%u OT=%u CC_RDY=%u DEV_RDY=%u",
+           dev->status.ov_fault,
+           dev->status.uv_fault,
+           dev->status.ocd_fault,
+           dev->status.scd_fault,
+           dev->status.ot_fault,
+           dev->status.cc_ready,
+           dev->status.dev_ready);
 }
 

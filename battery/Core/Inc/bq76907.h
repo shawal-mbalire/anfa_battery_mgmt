@@ -13,6 +13,10 @@
 #ifndef INC_BQ76907_H_
 #define INC_BQ76907_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "stm32g0xx_hal.h"  /* Ensure HAL types (HAL_StatusTypeDef, I2C_HandleTypeDef) available */
 #include <stdint.h>
 
@@ -138,7 +142,7 @@ typedef struct {
 typedef struct {
     I2C_HandleTypeDef *i2cHandle;
     uint16_t packVoltage_mV;
-    uint16_t cellVoltage_mV[5];
+    uint16_t cellVoltage_mV[4]; /* 4s pack per requirements */
     int16_t  ts1_degC_x10;
     BQ76907_SystemStatus status;
     BQ76907_Config       activeConfig; /* Snapshot of last applied configuration */
@@ -208,5 +212,30 @@ HAL_StatusTypeDef BQ76907_readPASSQ              (BQ76907 *dev, uint8_t *val); /
 HAL_StatusTypeDef BQ76907_setActiveBalancingMask (BQ76907 *dev, uint8_t cellMask); /* CB_ACTIVE_CELLS */
 HAL_StatusTypeDef BQ76907_protectionRecovery     (BQ76907 *dev, uint8_t mask);   /* PROT_RECOVERY */
 
+/* Host-side balancing heuristic: evaluate cell voltages and apply mask.
+ * Parameters:
+ *  deltaStart_mV: minimum spread to start balancing
+ *  deltaStop_mV : spread below which balancing stops (hysteresis)
+ *  minCell_mV   : do not balance any cell below this voltage
+ * Returns last applied mask (0 if none) or 0xFF on I2C error. */
+uint8_t BQ76907_evaluateAndBalance(BQ76907 *dev, uint16_t deltaStart_mV, uint16_t deltaStop_mV, uint16_t minCell_mV);
+
+/* Convenience high-level protection configuration wrappers */
+HAL_StatusTypeDef BQ76907_configVoltageProtection(BQ76907 *dev, uint16_t uv_mV, uint16_t ov_mV);
+HAL_StatusTypeDef BQ76907_configCurrentProtection(BQ76907 *dev, uint16_t ocChg_mA, uint16_t ocDis1_mA, uint16_t ocDis2_mA);
+HAL_StatusTypeDef BQ76907_configTemperatureProtection(BQ76907 *dev, uint8_t ot_C, uint8_t maxInternal_C);
+
+/* Debug / diagnostics */
+void BQ76907_debugDump(const BQ76907 *dev); /* Emits a concise state summary via BQ_LOG */
+
+#ifndef BQ_LOG
+#include <stdio.h>
+#define BQ_LOG(fmt, ...) do { printf("[BQ] " fmt "\n", ##__VA_ARGS__); } while(0)
+#endif
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* INC_BQ76907_H_ */
