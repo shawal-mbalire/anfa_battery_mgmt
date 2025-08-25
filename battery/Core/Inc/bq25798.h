@@ -8,7 +8,7 @@
 #ifndef INC_BQ25798_H_
 #define INC_BQ25798_H_
 
-#include "stm32g0xx_hal.h" /* needed for I2C */
+#include "stm32g0xx_hal.h" /* needed for I2C / HAL_StatusTypeDef */
 #include <stdint.h>
 
 /* --- I2C Configuration --- */
@@ -78,6 +78,23 @@
 #define BQ25798_REG_DM_ADC                 (0x45)  /**< Read-only register for D- ADC reading. */
 #define BQ25798_REG_DPDM_DRIVER            (0x47)  /**< Read-only register for D+/D- voltage control. */
 #define BQ25798_REG_PART_INFO              (0x48)  /**< Read-only register for device part number and revision. */
+
+/* --- Part Info Bitfield (verify with datasheet) --- */
+#define BQ25798_PART_INFO_PART_MASK   0x38  /* bits 5:3 */
+#define BQ25798_PART_INFO_PART_SHIFT  3
+#define BQ25798_PART_INFO_REV_MASK    0x07  /* bits 2:0 */
+
+/* Expected identity (already defined):
+ * BQ25798_PART_NUM_VAL (0x3)
+ * BQ25798_DEV_REV_VAL  (0x1)
+ */
+
+/* Result codes for higher-level API */
+typedef enum {
+    BQ25798_OK = 0,
+    BQ25798_ERR_I2C = -1,
+    BQ25798_ERR_ID_MISMATCH = -2
+} BQ25798_Result;
 
 // Structs
 #include <stdint.h>
@@ -186,6 +203,14 @@ HAL_StatusTypeDef readChargerStatus3(BQ25798 *device, uint8_t *status);
 HAL_StatusTypeDef readChargerStatus4(BQ25798 *device, uint8_t *status);
 HAL_StatusTypeDef readFaultStatus0(BQ25798 *device, uint8_t *status);
 HAL_StatusTypeDef readFaultStatus1(BQ25798 *device, uint8_t *status);
+
+/* Part confirmation & helpers */
+int  BQ25798_confirmPart(BQ25798 *device, uint8_t *rawVal, uint8_t *partNum, uint8_t *revNum);
+void BQ25798_decodePartInfo(uint8_t raw, uint8_t *partNum, uint8_t *revNum);
+
+/* 16-bit register helpers (for multi-byte limit registers) */
+HAL_StatusTypeDef BQ25798_Write16(BQ25798 *device, uint8_t msbReg, uint16_t value);
+HAL_StatusTypeDef BQ25798_Read16 (BQ25798 *device, uint8_t msbReg, uint16_t *value);
 
 
 #endif /* INC_BQ25798_H_ */
