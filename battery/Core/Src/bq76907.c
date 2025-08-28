@@ -341,6 +341,48 @@ void BQ76907_debugDump(const BQ76907 *dev){
            dev->status.dev_ready);
 }
 
+/* ================= Periodic Status Logger ================= */
+void BQ76907_logStatus(BQ76907 *dev){
+    if (!dev) return;
+    /* Throttle: only every 2000 ms */
+    static uint32_t lastTick = 0;
+    uint32_t now = HAL_GetTick();
+    if ((now - lastTick) < 2000u) return;
+    lastTick = now;
+
+    /* Ensure latest measurements (non-fatal if any fail; flags may be stale) */
+    (void)BQ76907_readSystemStatus(dev);
+    (void)BQ76907_readPackVoltage(dev);
+    (void)BQ76907_readCellVoltages(dev);
+    (void)BQ76907_readTemperature1(dev);
+
+    BQ_LOG("76907 STAT Pack=%umV Cells=%u,%u,%u,%u mV T=%d.%uC F:OV=%u UV=%u OCD=%u SCD=%u OT=%u CC=%u DEV=%u",
+        (unsigned)dev->packVoltage_mV,
+        (unsigned)dev->cellVoltage_mV[0], (unsigned)dev->cellVoltage_mV[1],
+        (unsigned)dev->cellVoltage_mV[2], (unsigned)dev->cellVoltage_mV[3],
+        dev->ts1_degC_x10/10, (unsigned)(dev->ts1_degC_x10%10),
+        dev->status.ov_fault,
+        dev->status.uv_fault,
+        dev->status.ocd_fault,
+        dev->status.scd_fault,
+        dev->status.ot_fault,
+        dev->status.cc_ready,
+        dev->status.dev_ready);
+}
+
+/* ================= Config Logger ================= */
+void BQ76907_logConfig(const BQ76907 *dev){
+    if (!dev){ BQ_LOG("76907 CFG: (null)"); return; }
+    const BQ76907_Config *c = &dev->activeConfig;
+    BQ_LOG("76907 CFG cellCount=%u UV=%umV OV=%umV OCchg=%umA OCd1=%umA OCd2=%umA OT=%uC MaxInt=%uC balInt=%ums voltTimeRaw=0x%02X",
+        c->cellCount, c->uvThreshold_mV, c->ovThreshold_mV, c->ocCharge_mA,
+        c->ocDischarge1_mA, c->ocDischarge2_mA, c->internalOT_C, c->maxInternalTemp_C,
+        c->balanceInterval_ms, c->voltageTimeUnits);
+    BQ_LOG("76907 CFG fetOpt=0x%02X protA=0x%02X protB=0x%02X dsgA=0x%02X chgA=0x%02X latch=0x%02X alarmMaskDef=0x%02X alarmEn=0x%02X daCfg=0x%02X regout=0x%02X pwr=0x%02X",
+        c->fetOptions, c->protectionsA, c->protectionsB, c->dsgFetProtA, c->chgFetProtA,
+        c->latchLimit, c->alarmMaskDefault, c->alarmEnableMask, c->daConfig, c->regoutConfig, c->powerConfig);
+}
+
 /* ================= Error API ================= */
 int8_t  BQ76907_getLastError(const BQ76907 *dev){ return dev ? dev->lastError : (int8_t)BM_ERR_UNKNOWN; }
 uint8_t BQ76907_getErrorCount(const BQ76907 *dev){ return dev ? (dev->errorHead > BM_ERROR_LOG_DEPTH ? BM_ERROR_LOG_DEPTH : dev->errorHead) : 0; }

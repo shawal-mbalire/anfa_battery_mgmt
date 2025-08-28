@@ -6,6 +6,7 @@
  */
 #include "bq25798.h"
 #include "stm32g0xx_hal.h" /* Ensure HAL declarations visible here */
+#include <stdint.h>
 
 uint8_t  BQ25798_init(BQ25798 *device, I2C_HandleTypeDef *i2cHandle){
 	device->i2cHandle = i2cHandle;
@@ -341,6 +342,56 @@ void BQ25798_debugDump(const BQ25798 *dev){
 	    dev->faultStatus0.conv_ocp_stat,
 	    dev->faultStatus0.vac2_ovp_stat,
 	    dev->faultStatus0.vac1_ovp_stat);
+}
+
+/* ================= Periodic Status Logger ================= */
+void BQ25798_logStatus(const BQ25798 *dev){
+	if (!dev) { BQ_LOG("(null dev)"); return; }
+	/* Simple throttle: only print every 500ms (relies on HAL tick). */
+	static uint32_t lastTick = 0;
+	uint32_t now = HAL_GetTick();
+	if ((now - lastTick) < 500u) return; /* skip */
+	lastTick = now;
+
+	/* Derive human-readable charge state (chargerStatus1.chg_stat). Placeholder mapping per datasheet typical patterns. */
+	const char *chgState;
+	switch (dev->chargerStatus1.chg_stat & 0x7){
+		case 0: chgState = "Idle"; break;
+		case 1: chgState = "Trickle"; break;
+		case 2: chgState = "PreCharge"; break;
+		case 3: chgState = "Fast"; break;
+		case 4: chgState = "Taper"; break;
+		case 5: chgState = "Reserved5"; break;
+		case 6: chgState = "Reserved6"; break;
+		case 7: chgState = "Complete"; break;
+		default: chgState = "?"; break;
+	}
+	const char *vbusSrc;
+	switch (dev->chargerStatus1.vbus_stat & 0xF){
+		case 0: vbusSrc = "None"; break;
+		case 1: vbusSrc = "USB_SDP"; break; /* example mapping */
+		case 2: vbusSrc = "USB_CDP"; break;
+		case 3: vbusSrc = "USB_DCP"; break;
+		case 4: vbusSrc = "Adapter"; break;
+		default: vbusSrc = "Other"; break;
+	}
+	BQ_LOG("STAT t=%lu VBAT=%umV IBAT=%umA VBUS=%umV IBUS=%umA CHG=%s VBUS_SRC=%s PG=%u VBAT_PRES=%u TREG=%u FAULTv=%u%u%u%u%u%u",
+		   (unsigned long)now,
+		   (unsigned)dev->voltageBattery,
+		   (unsigned)dev->currentBattery,
+		   (unsigned)dev->voltageBus,
+		   (unsigned)dev->currentBus,
+		   chgState,
+		   vbusSrc,
+		   dev->chargerStatus0.pg_stat,
+		   dev->chargerStatus2.vbat_present_stat,
+		   dev->chargerStatus2.treg_stat,
+		   dev->faultStatus0.vbus_ovp_stat,
+		   dev->faultStatus0.vbat_ovp_stat,
+		   dev->faultStatus0.ibus_ocp_stat,
+		   dev->faultStatus0.ibat_ocp_stat,
+		   dev->faultStatus0.conv_ocp_stat,
+		   dev->faultStatus0.ibat_reg_stat);
 }
 
 /* ================= Error API ================= */

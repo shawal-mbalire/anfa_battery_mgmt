@@ -1,5 +1,9 @@
 CompileFlags:
   Add:
+    - -target
+    - arm-none-eabi
+    - -x
+    - c
     - -mcpu=cortex-m0plus
     - -mthumb
     - -DUSE_HAL_DRIVER
@@ -13,6 +17,9 @@ CompileFlags:
     - -I/home/shawal/STM32Cube/Repository/STM32Cube_FW_G0_V1.6.2/Drivers/STM32G0xx_HAL_Driver/Inc/Legacy
     - -I/home/shawal/STM32Cube/Repository/STM32Cube_FW_G0_V1.6.2/Drivers/CMSIS/Device/ST/STM32G0xx/Include
     - -I/home/shawal/STM32Cube/Repository/STM32Cube_FW_G0_V1.6.2/Drivers/CMSIS/Include
+  # (Optional) Add your GCC ARM embedded sysroot include if clangd still can't find std headers:
+  # - -isystem
+  # - /usr/arm-none-eabi/include
   Remove:
     - -fshort-enums
 

@@ -25,6 +25,9 @@
 /* USER CODE BEGIN Includes */
 #include "bq25798.h" // Include the BQ25798 driver header
 #include "bq76907.h" // Battery monitor / protector (placeholder driver)
+#ifdef USE_ITM_LOG
+#include "itm_log.h"
+#endif
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -106,15 +109,47 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
+  #ifdef USE_ITM_LOG
+  ITM_Log_Init();
+  #endif
+  BQ_LOG("MAIN: Init start");
+
   // Initialize the BQ25798 charger
+  uint32_t t0 = HAL_GetTick();
   if (BQ25798_init(&bq25798_charger, &hi2c1) != 0) {
     Error_Handler();
   }
+  BQ_LOG("MAIN: Charger init done (+%lums)", (unsigned long)(HAL_GetTick()-t0));
   // Initialize the BQ76907 monitor (placeholder init – returns 0 on success)
+  t0 = HAL_GetTick();
   if (BQ76907_init(&bq76907_monitor, &hi2c1) != 0) {
     // If monitor init fails we continue charger operation but could flag a warning
     // For now treat as critical
     Error_Handler();
+  }
+  BQ_LOG("MAIN: Monitor init done (+%lums)", (unsigned long)(HAL_GetTick()-t0));
+
+  // Apply a placeholder safe configuration snapshot (values TBD after datasheet validation)
+  BQ76907_Config cfg = {
+      .cellCount = 4,
+      .uvThreshold_mV = 2500, .ovThreshold_mV = 4200,
+      .ocCharge_mA = 3000, .ocDischarge1_mA = 5000, .ocDischarge2_mA = 8000,
+      .internalOT_C = 85, .maxInternalTemp_C = 90,
+      .balanceInterval_ms = 5000,
+      .voltageTimeUnits = 0x00,
+      .fetOptions = 0x00,
+      .protectionsA = 0x00, .protectionsB = 0x00,
+      .dsgFetProtA = 0x00, .chgFetProtA = 0x00,
+      .latchLimit = 0x00,
+      .alarmMaskDefault = 0x00, .alarmEnableMask = 0x00,
+      .daConfig = 0x00, .regoutConfig = 0x00, .powerConfig = 0x00
+  };
+  t0 = HAL_GetTick();
+  if (BQ76907_applyConfig(&bq76907_monitor, &cfg) == HAL_OK){
+      BQ76907_logConfig(&bq76907_monitor);
+    BQ_LOG("MAIN: Monitor config applied (+%lums)", (unsigned long)(HAL_GetTick()-t0));
+  } else {
+      BQ_LOG("BQ76907 config apply failed");
   }
 
   // Initialize timers for immediate first update
@@ -211,6 +246,8 @@ void SystemClock_Config(void)
 // ---------------- Internal helper implementations ----------------
 
 static void UpdateCharger(void) {
+  uint32_t tStart = HAL_GetTick();
+  BQ_LOG("PROC: UpdateCharger begin");
   uint8_t b=0;
   readChargerStatus0(&bq25798_charger, &b);
   readChargerStatus1(&bq25798_charger, &b);
@@ -229,15 +266,45 @@ static void UpdateCharger(void) {
   } else {
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
   }
+  /* Emit a concise status line over SWO/semihost printf (throttled inside). */
+  BQ25798_logStatus(&bq25798_charger);
+  BQ_LOG("PROC: UpdateCharger end (%lums)", (unsigned long)(HAL_GetTick()-tStart));
 }
 
 static void UpdateMonitor(void) {
+  uint32_t tStart = HAL_GetTick();
+  BQ_LOG("PROC: UpdateMonitor begin");
   // Read system status & cell voltages
   BQ76907_readSystemStatus(&bq76907_monitor);
   BQ76907_readCellVoltages(&bq76907_monitor);
   BQ76907_readPackVoltage(&bq76907_monitor);
   BQ76907_readTemperature1(&bq76907_monitor);
-  // Future: add fault LED logic based on monitor faults
+  BQ76907_logStatus(&bq76907_monitor);
+  // Monitor fault indication (aggregate)
+  uint8_t anyFault = bq76907_monitor.status.ov_fault || bq76907_monitor.status.uv_fault ||
+           bq76907_monitor.status.ocd_fault || bq76907_monitor.status.scd_fault ||
+           bq76907_monitor.status.ot_fault;
+  static uint8_t lastFaultState = 0xFF; // ensure first print
+  if (anyFault){
+    // Flash LED rapidly to signal monitor-level fault (reuse PA5 / orange LED assumption)
+    if ((HAL_GetTick() - last_error_led_toggle_tick) >= 150){
+      last_error_led_toggle_tick = HAL_GetTick();
+      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+    }
+  }
+  if (lastFaultState != anyFault){
+    lastFaultState = anyFault;
+    if (anyFault){
+      BQ_LOG("MONITOR FAULT: OV=%u UV=%u OCD=%u SCD=%u OT=%u", bq76907_monitor.status.ov_fault,
+         bq76907_monitor.status.uv_fault, bq76907_monitor.status.ocd_fault,
+         bq76907_monitor.status.scd_fault, bq76907_monitor.status.ot_fault);
+    } else {
+      BQ_LOG("MONITOR FAULT CLEARED");
+      // Ensure LED off (inactive state high per earlier assumption)
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+    }
+  }
+  BQ_LOG("PROC: UpdateMonitor end (%lums)", (unsigned long)(HAL_GetTick()-tStart));
 }
 
 static uint16_t findMaxCell(uint16_t *vals, uint8_t count) {
@@ -248,6 +315,8 @@ static uint16_t findMinCell(uint16_t *vals, uint8_t count) {
 }
 
 static void EvaluateBalancing(void) {
+  uint32_t tStart = HAL_GetTick();
+  BQ_LOG("PROC: EvaluateBalancing begin");
   // Placeholder simple balancing: compute delta and decide a mask
   uint8_t cellCount = 5; // placeholder variant
   uint16_t vmax = findMaxCell(bq76907_monitor.cellVoltage_mV, cellCount);
@@ -272,9 +341,11 @@ static void EvaluateBalancing(void) {
       balancingActive = 0;
     }
   }
+  BQ_LOG("PROC: EvaluateBalancing end (%lums)", (unsigned long)(HAL_GetTick()-tStart));
 }
 
 static void applyCellBalancingMask(uint8_t mask) {
+  BQ_LOG("PROC: applyCellBalancingMask mask=0x%02X", mask);
   // Placeholder: would write mask bits into CELLBAL1/2 registers after verification.
   // Splitting across two registers if needed (e.g., lower 3 bits in CELLBAL1, next in CELLBAL2).
   (void)mask; // suppress unused warning until implemented

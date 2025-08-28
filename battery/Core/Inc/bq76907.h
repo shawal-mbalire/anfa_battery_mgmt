@@ -239,6 +239,14 @@ HAL_StatusTypeDef BQ76907_configTemperatureProtection(BQ76907 *dev, uint8_t ot_C
 
 /* Debug / diagnostics */
 void BQ76907_debugDump(const BQ76907 *dev); /* Emits a concise state summary via BQ_LOG */
+/* Periodic concise status line; internally throttled by tick interval.
+ * Example output:
+ * [BQ] 76907 STAT Pack=15320mV Cells=3810,3820,3815,3875mV T=27.3C F:OV=0 UV=0 OCD=0 SCD=0 OT=0 Bal=0x0
+ */
+void BQ76907_logStatus(BQ76907 *dev);
+
+/* One-shot dump of the currently applied (shadowed) configuration struct. */
+void BQ76907_logConfig(const BQ76907 *dev);
 
 /* Error / diagnostics API */
 int8_t  BQ76907_getLastError(const BQ76907 *dev);
@@ -246,8 +254,13 @@ uint8_t BQ76907_getErrorCount(const BQ76907 *dev);
 void    BQ76907_dumpErrors(const BQ76907 *dev);
 
 #ifndef BQ_LOG
-#include <stdio.h>
-#define BQ_LOG(fmt, ...) do { printf("[BQ] " fmt "\n", ##__VA_ARGS__); } while(0)
+ #ifdef USE_ITM_LOG
+  #include "itm_log.h"
+  #define BQ_LOG(fmt, ...) do { ITM_Log_Printf("[BQ] " fmt, ##__VA_ARGS__); } while(0)
+ #else
+  #include <stdio.h>
+  #define BQ_LOG(fmt, ...) do { printf("[BQ] " fmt "\n", ##__VA_ARGS__); } while(0)
+ #endif
 #endif
 
 #ifndef BQ_VERIFY

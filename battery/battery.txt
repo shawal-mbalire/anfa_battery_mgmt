@@ -1,0 +1,56 @@
+Configuration	battery
+STM32CubeMX 	6.15.0
+Date	08/28/2025
+MCU	STM32G0B1RETx
+
+
+
+PERIPHERALS	MODES	FUNCTIONS	PINS
+I2C1	I2C	I2C1_SCL	PA9
+I2C1	I2C	I2C1_SDA	PA10
+SYS	SysTick	SYS_VS_Systick	VP_SYS_VS_Systick
+SYS	Dead Battery Signals disabled	SYS_VS_DBSignals	VP_SYS_VS_DBSignals
+
+
+
+Pin Nb	PINs	FUNCTIONs	LABELs
+37	PA9	I2C1_SCL	
+42	PA10	I2C1_SDA	
+PERIPHERALS	MODES	FUNCTIONS	PINS
+I2C1	I2C	I2C1_SCL	PA9
+I2C1	I2C	I2C1_SDA	PA10
+SYS	SysTick	SYS_VS_Systick	VP_SYS_VS_Systick
+SYS	Dead Battery Signals disabled	SYS_VS_DBSignals	VP_SYS_VS_DBSignals
+
+
+
+Pin Nb	PINs	FUNCTIONs	LABELs
+37	PA9	I2C1_SCL	
+42	PA10	I2C1_SDA	
+
+
+
+SOFTWARE PROJECT
+
+Project Settings : 
+Project Name : battery
+Project Folder : /home/shawal/GitHub/anfa_battery_management/battery
+Toolchain / IDE : STM32CubeIDE
+Firmware Package Name and Version : STM32Cube FW_G0 V1.6.2
+
+
+Code Generation Settings : 
+STM32Cube MCU packages and embedded software packs : Add necessary library files as reference in the toolchain project configuration file
+Generate peripheral initialization as a pair of '.c/.h' files per peripheral : Yes
+Backup previously generated files when re-generating : Yes
+Delete previously generated files when not re-generated : No
+Set all free pins as analog (to optimize the power consumption) : No
+
+
+Toolchains Settings : 
+Compiler Optimizations : 
+
+
+
+
+

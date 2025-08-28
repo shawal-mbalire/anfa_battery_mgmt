@@ -1,0 +1,12 @@
+../Core/Inc/bq25798.h:271:24:BQ25798_encodeChargeVoltage_mV	1
+../Core/Inc/bq25798.h:272:24:BQ25798_decodeChargeVoltage_raw	1
+../Core/Inc/bq25798.h:275:24:BQ25798_encodeChargeCurrent_mA	1
+../Core/Inc/bq25798.h:276:24:BQ25798_decodeChargeCurrent_raw	1
+../Core/Inc/bq25798.h:279:24:BQ25798_encodeInputCurrent_mA	1
+../Core/Inc/bq25798.h:280:24:BQ25798_decodeInputCurrent_raw	1
+../Core/Inc/bq25798.h:283:24:BQ25798_encodeInputVoltageLimit_mV	1
+../Core/Inc/bq25798.h:284:24:BQ25798_decodeInputVoltageLimit_raw	1
+../Core/Inc/bq25798.h:287:24:BQ25798_encodePrechargeCurrent_mA	1
+../Core/Inc/bq25798.h:288:24:BQ25798_decodePrechargeCurrent_raw	1
+../Core/Src/bq25798_scale_test.c:19:6:BQ25798_runScalingSelfTest	18
+../Core/Src/bq25798_scale_test.c:80:6:BQ25798_runAssertionReport	13

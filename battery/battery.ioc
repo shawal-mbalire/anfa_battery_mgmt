@@ -1,6 +1,6 @@
 #MicroXplorer Configuration settings - do not modify
-CAD.formats=
-CAD.pinconfig=
+CAD.formats=[]
+CAD.pinconfig=Dual
 CAD.provider=
 File.Version=6
 I2C1.IPParameters=Timing
@@ -113,4 +113,3 @@ VP_SYS_VS_DBSignals.Signal=SYS_VS_DBSignals
 VP_SYS_VS_Systick.Mode=SysTick
 VP_SYS_VS_Systick.Signal=SYS_VS_Systick
 board=custom
-isbadioc=false
