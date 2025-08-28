@@ -1,5 +1,31 @@
 CompileFlags:
   Add:
-    - -I/home/shawal/GitHub/anfa_battery_management/battery/Core/Inc
-    - -I/home/shawal/GitHub/anfa_battery_management/battery/Drivers/STM32G0xx_HAL_Driver/Inc
-    - -I/home/shawal/GitHub/anfa_battery_management/battery/Drivers/STM32G0xx_HAL_Driver/Inc
+    - -mcpu=cortex-m0plus
+    - -mthumb
+    - -DUSE_HAL_DRIVER
+    - -DSTM32G0B1xx
+    - -std=gnu11
+    - -I${workspaceFolder}/Core/Inc
+    - -I${workspaceFolder}/Core/Startup
+    - -I${workspaceFolder}/Drivers/STM32G0xx_HAL_Driver/Inc
+    - -I${workspaceFolder}/Drivers/STM32G0xx_HAL_Driver/Inc/Legacy
+    - -I/home/shawal/STM32Cube/Repository/STM32Cube_FW_G0_V1.6.2/Drivers/STM32G0xx_HAL_Driver/Inc
+    - -I/home/shawal/STM32Cube/Repository/STM32Cube_FW_G0_V1.6.2/Drivers/STM32G0xx_HAL_Driver/Inc/Legacy
+    - -I/home/shawal/STM32Cube/Repository/STM32Cube_FW_G0_V1.6.2/Drivers/CMSIS/Device/ST/STM32G0xx/Include
+    - -I/home/shawal/STM32Cube/Repository/STM32Cube_FW_G0_V1.6.2/Drivers/CMSIS/Include
+  Remove:
+    - -fshort-enums
+
+Diagnostics:
+  Suppress: [pp_including_mainfile]
+
+Index:
+  Background: Build
+
+# APP selection (uncomment one if you frequently use that variant):
+# CompileFlags:
+#   Add: [-DBQ25798_LEGACY_MAIN]
+# CompileFlags:
+#   Add: [-DBQ76907_DEMO_STANDALONE]
+
+# For alternate APP builds invoked via Makefile, clangd may not see the define; you can add it above temporarily.

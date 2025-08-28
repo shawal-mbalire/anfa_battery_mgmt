@@ -17,8 +17,13 @@
 extern "C" {
 #endif
 
-#include "stm32g0xx_hal.h"  /* Ensure HAL types (HAL_StatusTypeDef, I2C_HandleTypeDef) available */
+#if defined(USE_HAL_STUBS) || defined(BQ76907_NO_HAL)
+#include "hal_stubs.h"
+#else
+#include "stm32g0xx_hal.h"  /* Real HAL */
+#endif
 #include <stdint.h>
+#include "bm_errors.h"
 
 /* ============================= IMPORTANT VALIDATION NOTICE =============================
  * The BQ76907 register map, I2C address, and bit definitions below are placeholders
@@ -146,6 +151,11 @@ typedef struct {
     int16_t  ts1_degC_x10;
     BQ76907_SystemStatus status;
     BQ76907_Config       activeConfig; /* Snapshot of last applied configuration */
+
+    /* Error handling */
+    BM_ErrorEntry errorLog[BM_ERROR_LOG_DEPTH];
+    uint8_t errorHead;
+    int8_t  lastError;
 } BQ76907;
 
 /* ================= API PROTOTYPES ================= */
@@ -154,10 +164,12 @@ typedef struct {
 uint8_t BQ76907_init(BQ76907 *dev, I2C_HandleTypeDef *hi2c);
 
 // Data acquisition
+#ifndef BQ76907_NO_HAL
 HAL_StatusTypeDef BQ76907_readSystemStatus(BQ76907 *dev);
 HAL_StatusTypeDef BQ76907_readCellVoltages(BQ76907 *dev);
 HAL_StatusTypeDef BQ76907_readPackVoltage(BQ76907 *dev);
 HAL_StatusTypeDef BQ76907_readTemperature1(BQ76907 *dev);
+#endif
 
 // Low Level Access
 HAL_StatusTypeDef BQ76907_ReadRegister (BQ76907 *dev, uint8_t reg, uint8_t *data);
@@ -228,9 +240,19 @@ HAL_StatusTypeDef BQ76907_configTemperatureProtection(BQ76907 *dev, uint8_t ot_C
 /* Debug / diagnostics */
 void BQ76907_debugDump(const BQ76907 *dev); /* Emits a concise state summary via BQ_LOG */
 
+/* Error / diagnostics API */
+int8_t  BQ76907_getLastError(const BQ76907 *dev);
+uint8_t BQ76907_getErrorCount(const BQ76907 *dev);
+void    BQ76907_dumpErrors(const BQ76907 *dev);
+
 #ifndef BQ_LOG
 #include <stdio.h>
 #define BQ_LOG(fmt, ...) do { printf("[BQ] " fmt "\n", ##__VA_ARGS__); } while(0)
+#endif
+
+#ifndef BQ_VERIFY
+#define BQ_VERIFY(devPtr, expr, code, detail) \
+    do { if(!(expr)){ BQ_LOG("VERIFY FAIL: %s (code=%d)", #expr, (int)(code)); BM_PUSH_ERROR(devPtr, BM_SRC_BQ76907, code, (uint8_t)(detail), 0xFE, 0); } } while(0)
 #endif
 
 

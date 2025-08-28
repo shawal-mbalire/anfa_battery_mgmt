@@ -23,15 +23,26 @@ uint8_t  BQ25798_init(BQ25798 *device, I2C_HandleTypeDef *i2cHandle){
 	reg = 0x10; /* Charger Ctrl 1: disable watchdog, host mode, I2C watchdog reset (verify bits) */
 	BQ25798_WriteRegister(device, BQ25798_REG_CHARGER_CTRL_1, &reg);
 
-	/* Voltage / current limit setters (values are placeholders; implement proper encoders) */
-	uint8_t vsys_min = 0x70; /* 14500mV? verify scaling */
+	/* Voltage / current limit setters using scaling helpers */
+	/* VSYSMIN left as previously set (complex mapping TBD). Keep existing raw 0x70 placeholder. */
+	uint8_t vsys_min = 0x70; /* TODO_VERIFY: derive proper encode for VSYSMIN */
 	BQ25798_WriteRegister(device, BQ25798_REG_MIN_SYS_VOLTAGE, &vsys_min);
 
-	BQ25798_Write16(device, BQ25798_REG_CHARGE_VOLTAGE_LIMIT, 0x05B4); /* 14600mV raw? verify */
-	BQ25798_Write16(device, BQ25798_REG_CHARGE_CURRENT_LIMIT, 0x03F4); /* 3650mA raw? verify */
-	uint8_t vindpm = 0x24; /* 3600mV? verify scaling */
+	/* Charge voltage: 14600 mV -> raw 1460 (0x05B4) */
+	uint16_t vreg_raw = BQ25798_encodeChargeVoltage_mV(14600);
+	BQ25798_Write16(device, BQ25798_REG_CHARGE_VOLTAGE_LIMIT, vreg_raw);
+
+	/* Charge current: choose 5000 mA (raw 500 = 0x01F4); correcting earlier probable typo 0x03F4 */
+	uint16_t ichg_raw = BQ25798_encodeChargeCurrent_mA(5000);
+	BQ25798_Write16(device, BQ25798_REG_CHARGE_CURRENT_LIMIT, ichg_raw);
+
+	/* Input voltage limit: 3600 mV -> 0x24 */
+	uint8_t vindpm = BQ25798_encodeInputVoltageLimit_mV(3600);
 	BQ25798_WriteRegister(device, BQ25798_REG_INPUT_VOLTAGE_LIMIT, &vindpm);
-	BQ25798_Write16(device, BQ25798_REG_INPUT_CURRENT_LIMIT, 0x014A); /* 3300mA raw? verify */
+
+	/* Input current limit: 3300 mA -> raw 330 (0x014A) */
+	uint16_t iin_raw = BQ25798_encodeInputCurrent_mA(3300);
+	BQ25798_Write16(device, BQ25798_REG_INPUT_CURRENT_LIMIT, iin_raw);
 
 	uint8_t prechg = 0x03; /* precharge current config placeholder */
 	BQ25798_WriteRegister(device, BQ25798_REG_PRECHARGE_CTRL, &prechg);
@@ -226,54 +237,42 @@ HAL_StatusTypeDef BQ25798_readBatteryCurrent(BQ25798 *device){
 // LOW LEVEL FUNCTIONS
 
 HAL_StatusTypeDef BQ25798_ReadRegister(BQ25798 *device, uint8_t reg, uint8_t *data){
-	return HAL_I2C_Mem_Read(
-			device -> i2cHandle,
-			BQ25798_I2C_ADDRESS,
-			reg,
-			I2C_MEMADD_SIZE_8BIT,
-			data,
-			1,
-			HAL_MAX_DELAY
-	);
+	HAL_StatusTypeDef st = HAL_I2C_Mem_Read(device->i2cHandle, BQ25798_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, data, 1, HAL_MAX_DELAY);
+	if (st != HAL_OK){
+		BM_PUSH_ERROR(device, BM_SRC_BQ25798, BM_ERR_I2C, (uint8_t)st, reg, 0);
+	}
+	return st;
 }
 
 HAL_StatusTypeDef BQ25798_ReadRegisters(BQ25798 *device, uint8_t reg, uint8_t *data, uint8_t length){
-	return HAL_I2C_Mem_Read(
-			device -> i2cHandle,
-			BQ25798_I2C_ADDRESS,
-			reg,
-			I2C_MEMADD_SIZE_8BIT,
-			data,
-			length,
-			HAL_MAX_DELAY
-	);
+	HAL_StatusTypeDef st = HAL_I2C_Mem_Read(device->i2cHandle, BQ25798_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, data, length, HAL_MAX_DELAY);
+	if (st != HAL_OK){
+		BM_PUSH_ERROR(device, BM_SRC_BQ25798, BM_ERR_I2C, (uint8_t)st, reg, 0);
+	}
+	return st;
 
 }
 HAL_StatusTypeDef BQ25798_WriteRegister(BQ25798 *device, uint8_t reg, uint8_t *data){
-	return HAL_I2C_Mem_Write(
-			device -> i2cHandle,
-			BQ25798_I2C_ADDRESS,
-			reg,
-			I2C_MEMADD_SIZE_8BIT,
-			data,
-			1,
-			HAL_MAX_DELAY
-	);
+	HAL_StatusTypeDef st = HAL_I2C_Mem_Write(device->i2cHandle, BQ25798_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, data, 1, HAL_MAX_DELAY);
+	if (st != HAL_OK){
+		BM_PUSH_ERROR(device, BM_SRC_BQ25798, BM_ERR_I2C, (uint8_t)st, reg, *data);
+	}
+	return st;
 
 }
 
 /* ================= High-Level Control / Profile Functions ================= */
 HAL_StatusTypeDef BQ25798_setChargeVoltage(BQ25798 *dev, uint16_t mV){
-	uint16_t raw = BQ25798_encodeChargeVoltage_mV(mV);
-	return BQ25798_Write16(dev, BQ25798_REG_CHARGE_VOLTAGE_LIMIT, raw);
+    uint16_t raw = BQ25798_encodeChargeVoltage_mV(mV);
+    return BQ25798_Write16(dev, BQ25798_REG_CHARGE_VOLTAGE_LIMIT, raw);
 }
 HAL_StatusTypeDef BQ25798_setChargeCurrent(BQ25798 *dev, uint16_t mA){
-	uint16_t raw = BQ25798_encodeChargeCurrent_mA(mA);
-	return BQ25798_Write16(dev, BQ25798_REG_CHARGE_CURRENT_LIMIT, raw);
+    uint16_t raw = BQ25798_encodeChargeCurrent_mA(mA);
+    return BQ25798_Write16(dev, BQ25798_REG_CHARGE_CURRENT_LIMIT, raw);
 }
 HAL_StatusTypeDef BQ25798_setInputCurrentLimit(BQ25798 *dev, uint16_t mA){
-	uint16_t raw = BQ25798_encodeInputCurrent_mA(mA);
-	return BQ25798_Write16(dev, BQ25798_REG_INPUT_CURRENT_LIMIT, raw);
+    uint16_t raw = BQ25798_encodeInputCurrent_mA(mA);
+    return BQ25798_Write16(dev, BQ25798_REG_INPUT_CURRENT_LIMIT, raw);
 }
 HAL_StatusTypeDef BQ25798_chargerEnable(BQ25798 *dev, uint8_t enable){
 	uint8_t reg;
@@ -342,4 +341,17 @@ void BQ25798_debugDump(const BQ25798 *dev){
 	    dev->faultStatus0.conv_ocp_stat,
 	    dev->faultStatus0.vac2_ovp_stat,
 	    dev->faultStatus0.vac1_ovp_stat);
+}
+
+/* ================= Error API ================= */
+int8_t BQ25798_getLastError(const BQ25798 *dev){ return dev ? dev->lastError : (int8_t)BM_ERR_UNKNOWN; }
+uint8_t BQ25798_getErrorCount(const BQ25798 *dev){ return dev ? (dev->errorHead > BM_ERROR_LOG_DEPTH ? BM_ERROR_LOG_DEPTH : dev->errorHead) : 0; }
+void BQ25798_dumpErrors(const BQ25798 *dev){
+	if (!dev){ BQ_LOG("BQ25798 errors: (null)"); return; }
+	uint8_t count = (dev->errorHead > BM_ERROR_LOG_DEPTH)? BM_ERROR_LOG_DEPTH : dev->errorHead;
+	BQ_LOG("BQ25798 Error Log (most recent %u):", count);
+	for (uint8_t i=0;i<count;i++){
+		const BM_ErrorEntry *e = &dev->errorLog[i];
+		BQ_LOG("  t=%lu code=%d det=%u reg=0x%02X val=0x%04X", (unsigned long)e->tick, (int)e->code, e->detail, e->reg, e->value);
+	}
 }

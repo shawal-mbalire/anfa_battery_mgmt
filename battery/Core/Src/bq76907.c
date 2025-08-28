@@ -103,21 +103,33 @@ HAL_StatusTypeDef BQ76907_readTemperature1(BQ76907 *dev){
  * @brief Low-level single register read helper.
  */
 HAL_StatusTypeDef BQ76907_ReadRegister(BQ76907 *dev, uint8_t reg, uint8_t *data){
-    return HAL_I2C_Mem_Read(dev->i2cHandle, BQ76907_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, data, 1, HAL_MAX_DELAY);
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Read(dev->i2cHandle, BQ76907_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, data, 1, HAL_MAX_DELAY);
+    if (st != HAL_OK){
+        BM_PUSH_ERROR(dev, BM_SRC_BQ76907, BM_ERR_I2C, (uint8_t)st, reg, 0);
+    }
+    return st;
 }
 
 /**
  * @brief Low-level burst read helper for sequential registers.
  */
 HAL_StatusTypeDef BQ76907_ReadRegisters(BQ76907 *dev, uint8_t reg, uint8_t *data, uint8_t len){
-    return HAL_I2C_Mem_Read(dev->i2cHandle, BQ76907_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, data, len, HAL_MAX_DELAY);
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Read(dev->i2cHandle, BQ76907_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, data, len, HAL_MAX_DELAY);
+    if (st != HAL_OK){
+        BM_PUSH_ERROR(dev, BM_SRC_BQ76907, BM_ERR_I2C, (uint8_t)st, reg, 0);
+    }
+    return st;
 }
 
 /**
  * @brief Low-level single register write helper.
  */
 HAL_StatusTypeDef BQ76907_WriteRegister(BQ76907 *dev, uint8_t reg, uint8_t data){
-    return HAL_I2C_Mem_Write(dev->i2cHandle, BQ76907_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, &data, 1, HAL_MAX_DELAY);
+    HAL_StatusTypeDef st = HAL_I2C_Mem_Write(dev->i2cHandle, BQ76907_I2C_ADDRESS, reg, I2C_MEMADD_SIZE_8BIT, &data, 1, HAL_MAX_DELAY);
+    if (st != HAL_OK){
+        BM_PUSH_ERROR(dev, BM_SRC_BQ76907, BM_ERR_I2C, (uint8_t)st, reg, data);
+    }
+    return st;
 }
 
 /* Scaling helpers (placeholder implementations) */
@@ -327,5 +339,18 @@ void BQ76907_debugDump(const BQ76907 *dev){
            dev->status.ot_fault,
            dev->status.cc_ready,
            dev->status.dev_ready);
+}
+
+/* ================= Error API ================= */
+int8_t  BQ76907_getLastError(const BQ76907 *dev){ return dev ? dev->lastError : (int8_t)BM_ERR_UNKNOWN; }
+uint8_t BQ76907_getErrorCount(const BQ76907 *dev){ return dev ? (dev->errorHead > BM_ERROR_LOG_DEPTH ? BM_ERROR_LOG_DEPTH : dev->errorHead) : 0; }
+void    BQ76907_dumpErrors(const BQ76907 *dev){
+    if (!dev){ BQ_LOG("BQ76907 errors: (null)"); return; }
+    uint8_t count = (dev->errorHead > BM_ERROR_LOG_DEPTH)? BM_ERROR_LOG_DEPTH : dev->errorHead;
+    BQ_LOG("BQ76907 Error Log (most recent %u):", count);
+    for (uint8_t i=0;i<count;i++){
+        const BM_ErrorEntry *e = &dev->errorLog[i];
+        BQ_LOG("  t=%lu code=%d det=%u reg=0x%02X val=0x%04X", (unsigned long)e->tick, (int)e->code, e->detail, e->reg, e->value);
+    }
 }
 

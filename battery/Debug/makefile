@@ -47,7 +47,7 @@ MAP_FILES += \
 battery.map \
 
 SIZE_OUTPUT += \
-default.size.stdout \
+battery.size.stdout \
 
 OBJDUMP_LIST += \
 battery.list \
@@ -65,7 +65,7 @@ battery.elf battery.map: $(OBJS) $(USER_OBJS) /home/shawal/GitHub/anfa_battery_m
 	@echo 'Finished building target: $@'
 	@echo ' '
 
-default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+battery.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	arm-none-eabi-size  $(EXECUTABLES)
 	@echo 'Finished building: $@'
 	@echo ' '
@@ -77,7 +77,7 @@ battery.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 
 # Other Targets
 clean:
-	-$(RM) battery.elf battery.list battery.map default.size.stdout
+	-$(RM) battery.elf battery.list battery.map battery.size.stdout
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)

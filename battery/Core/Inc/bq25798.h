@@ -12,8 +12,13 @@
 extern "C" {
 #endif
 
-#include "stm32g0xx_hal.h" /* needed for I2C / HAL_StatusTypeDef */
+#if defined(USE_HAL_STUBS) || defined(BQ25798_NO_HAL)
+#include "hal_stubs.h"
+#else
+#include "stm32g0xx_hal.h" /* real HAL */
+#endif
 #include <stdint.h>
+#include "bm_errors.h"
 
 /* --- I2C Configuration --- */
 #define BQ25798_I2C_ADDRESS_7BIT           (0x6B) // page 53
@@ -183,17 +188,23 @@ typedef struct{
 	BQ25798_ChargerStatus4 chargerStatus4;
 	BQ25798_FaultStatus0 faultStatus0;
 	BQ25798_FaultStatus1 faultStatus1;
+
+    /* Error handling */
+    BM_ErrorEntry errorLog[BM_ERROR_LOG_DEPTH];
+    uint8_t errorHead;    /* next write index */
+    int8_t  lastError;    /* last BM_Result (negative on error) */
 } BQ25798;
 
 // INITIALISATION
-
 uint8_t BQ25798_init(BQ25798 *device, I2C_HandleTypeDef *i2cHandle);
 
 // DATA ACQUISATION
+#ifndef BQ25798_NO_HAL
 HAL_StatusTypeDef BQ25798_readBusVoltage(BQ25798 *device);
 HAL_StatusTypeDef BQ25798_readBusCurrent(BQ25798 *device);
 HAL_StatusTypeDef BQ25798_readBatteryVoltage(BQ25798 *device);
 HAL_StatusTypeDef BQ25798_readBatteryCurrent(BQ25798 *device);
+#endif
 
 
 // LOW LEVEL FUNCTIONS
@@ -237,17 +248,44 @@ BQ25798_Result BQ25798_confirmPart(BQ25798 *device, BQ25798_PartInfo *infoOut);
 int BQ25798_confirmPart_Legacy(BQ25798 *device, uint8_t *rawVal, uint8_t *partNum, uint8_t *revNum);
 
 /* 16-bit register helpers (for multi-byte limit registers) */
+#ifndef BQ25798_NO_HAL
 HAL_StatusTypeDef BQ25798_Write16(BQ25798 *device, uint8_t msbReg, uint16_t value);
 HAL_StatusTypeDef BQ25798_Read16 (BQ25798 *device, uint8_t msbReg, uint16_t *value);
+#endif
 
 /* --- Charger Control Bit Masks (placeholders; verify with datasheet) --- */
 #define BQ25798_CHG_CTRL0_CHG_EN    (1u<<7) /* Enable charging */
 #define BQ25798_CHG_CTRL0_HIZ_EN    (1u<<6) /* High impedance mode */
 
-/* Scaling encode helpers (placeholders: adjust LSB sizes) */
-static inline uint16_t BQ25798_encodeChargeVoltage_mV(uint16_t mV){ return mV; /* TODO scale */ }
-static inline uint16_t BQ25798_encodeChargeCurrent_mA(uint16_t mA){ return mA; /* TODO scale */ }
-static inline uint16_t BQ25798_encodeInputCurrent_mA(uint16_t mA){ return mA; /* TODO scale */ }
+/* ================= Scaling Helpers =================
+ * Derived from provided sample values:
+ *  REG01 (Charge Voltage Limit): 0x05B4 -> 14600mV, raw=1460 => 10mV/LSB.
+ *  REG03 (Charge Current Limit): 0x0190 -> 4000mA, raw=400 => 10mA/LSB; 0x0064->1000mA.
+ *      Sample 0x03F4 claimed 5000mA appears inconsistent (would imply ~4.94mA/LSB). Likely typo; expected 0x01F4.
+ *  REG05 (Input Voltage Limit / VINDPM): 0x24 -> 3600mV => 100mV/LSB.
+ *  REG06 (Input Current Limit): 0x014A -> 3300mA => 10mA/LSB.
+ *  REG08 (Precharge Control current portion): codes 0x03,0x04,0x05 => 120,160,200mA => 40mA * code.
+ */
+
+/* Charge voltage: 10 mV per LSB */
+static inline uint16_t BQ25798_encodeChargeVoltage_mV(uint16_t mV){ return (uint16_t)(mV / 10u); }
+static inline uint16_t BQ25798_decodeChargeVoltage_raw(uint16_t raw){ return (uint16_t)(raw * 10u); }
+
+/* Charge current: 10 mA per LSB */
+static inline uint16_t BQ25798_encodeChargeCurrent_mA(uint16_t mA){ return (uint16_t)(mA / 10u); }
+static inline uint16_t BQ25798_decodeChargeCurrent_raw(uint16_t raw){ return (uint16_t)(raw * 10u); }
+
+/* Input current: 10 mA per LSB */
+static inline uint16_t BQ25798_encodeInputCurrent_mA(uint16_t mA){ return (uint16_t)(mA / 10u); }
+static inline uint16_t BQ25798_decodeInputCurrent_raw(uint16_t raw){ return (uint16_t)(raw * 10u); }
+
+/* Input voltage limit (VINDPM): 100 mV per LSB */
+static inline uint8_t  BQ25798_encodeInputVoltageLimit_mV(uint16_t mV){ return (uint8_t)(mV / 100u); }
+static inline uint16_t BQ25798_decodeInputVoltageLimit_raw(uint8_t raw){ return (uint16_t)(raw * 100u); }
+
+/* Precharge current: I_pre (mA) = code * 40mA (based on samples) */
+static inline uint8_t  BQ25798_encodePrechargeCurrent_mA(uint16_t mA){ return (uint8_t)(mA / 40u); }
+static inline uint16_t BQ25798_decodePrechargeCurrent_raw(uint8_t code){ return (uint16_t)(code * 40u); }
 
 /* High-level control / profile API */
 HAL_StatusTypeDef BQ25798_setChargeVoltage(BQ25798 *dev, uint16_t mV);
@@ -258,6 +296,16 @@ HAL_StatusTypeDef BQ25798_updateChargeProfile(BQ25798 *dev); /* dynamic current 
 HAL_StatusTypeDef BQ25798_thermalGuard(BQ25798 *dev, int16_t tempC_x10_min, int16_t tempC_x10_max); /* disable outside window */
 HAL_StatusTypeDef BQ25798_readDieTemperature(BQ25798 *dev, int16_t *tempC_x10); /* stub */
 
+/* Optional scaling self-test (pure arithmetic, no I2C). Implemented in bq25798_scale_test.c */
+void BQ25798_runScalingSelfTest(void);
+/* Runtime assertion / validation report (includes PART_INFO read if device provided) */
+void BQ25798_runAssertionReport(BQ25798 *dev);
+
+/* Error / diagnostics API */
+int8_t BQ25798_getLastError(const BQ25798 *dev); /* returns BM_Result */
+uint8_t BQ25798_getErrorCount(const BQ25798 *dev); /* number recorded (capped at depth) */
+void BQ25798_dumpErrors(const BQ25798 *dev); /* log recent errors */
+
 /* Debug / diagnostics */
 void BQ25798_debugDump(const BQ25798 *dev);
 
@@ -265,6 +313,31 @@ void BQ25798_debugDump(const BQ25798 *dev);
 #include <stdio.h>
 #define BQ_LOG(fmt, ...) do { printf("[BQ] " fmt "\n", ##__VA_ARGS__); } while(0)
 #endif
+
+/* Verification macro: logs if expression false (non-fatal) */
+#ifndef BQ_VERIFY
+#define BQ_VERIFY(devPtr, expr, code, detail) \
+    do { if(!(expr)){ BQ_LOG("VERIFY FAIL: %s (code=%d)", #expr, (int)(code)); BM_PUSH_ERROR(devPtr, BM_SRC_BQ25798, code, (uint8_t)(detail), 0xFF, 0); } } while(0)
+#endif
+
+/* ================= Compile-Time Scaling Sanity Checks =================
+ * Replaced with pure constant arithmetic in enum initialisers. Any failure
+ * triggers division by zero. Define BQ25798_NO_STATIC_ASSERTS to skip.
+ */
+#if !defined(BQ25798_NO_STATIC_ASSERTS)
+enum {
+    bq_static_assert_vreg_14600mV_encodes_to_1460      = 1 / (((14600u/10u) == 1460u) ? 1u : 0u),
+    bq_static_assert_vreg_1460_decodes_to_14600mV      = 1 / (((1460u*10u)  == 14600u) ? 1u : 0u),
+    bq_static_assert_ichg_4000mA_encodes_to_400        = 1 / (((4000u/10u)  == 400u ) ? 1u : 0u),
+    bq_static_assert_ichg_400_decodes_to_4000mA        = 1 / (((400u*10u)   == 4000u) ? 1u : 0u),
+    bq_static_assert_ichg_1000mA_encodes_to_100        = 1 / (((1000u/10u)  == 100u ) ? 1u : 0u),
+    bq_static_assert_ichg_5000mA_encodes_to_500        = 1 / (((5000u/10u)  == 500u ) ? 1u : 0u),
+    bq_static_assert_vindpm_3600mV_encodes_to_36       = 1 / (((3600u/100u) == 36u  ) ? 1u : 0u),
+    bq_static_assert_iin_3300mA_encodes_to_330         = 1 / (((3300u/10u)  == 330u ) ? 1u : 0u),
+    bq_static_assert_prechg_120mA_encodes_to_3         = 1 / (((120u/40u)   == 3u   ) ? 1u : 0u),
+    bq_static_assert_prechg_code3_decodes_to_120mA     = 1 / (((3u*40u)     == 120u ) ? 1u : 0u)
+};
+#endif /* !BQ25798_NO_STATIC_ASSERTS */
 
 #ifdef __cplusplus
 }
