@@ -254,13 +254,8 @@ uint8_t BQ76907_getErrorCount(const BQ76907 *dev);
 void    BQ76907_dumpErrors(const BQ76907 *dev);
 
 #ifndef BQ_LOG
- #ifdef USE_ITM_LOG
-  #include "itm_log.h"
-  #define BQ_LOG(fmt, ...) do { ITM_Log_Printf("[BQ] " fmt, ##__VA_ARGS__); } while(0)
- #else
-  #include <stdio.h>
-  #define BQ_LOG(fmt, ...) do { printf("[BQ] " fmt "\n", ##__VA_ARGS__); } while(0)
- #endif
+ #include <stdio.h>
+ #define BQ_LOG(fmt, ...) do { printf("[BQ] " fmt "\n", ##__VA_ARGS__); } while(0)
 #endif
 
 #ifndef BQ_VERIFY

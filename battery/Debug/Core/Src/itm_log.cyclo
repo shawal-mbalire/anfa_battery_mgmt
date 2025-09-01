@@ -1,4 +1,0 @@
-../Core/Src/itm_log.c:20:6:ITM_Log_Init	1
-../Core/Src/itm_log.c:26:6:ITM_Log_PutChar	1
-../Core/Src/itm_log.c:35:6:ITM_Log_Write	3
-../Core/Src/itm_log.c:40:6:ITM_Log_Printf	1

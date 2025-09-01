@@ -25,9 +25,6 @@
 /* USER CODE BEGIN Includes */
 #include "bq25798.h" // Include the BQ25798 driver header
 #include "bq76907.h" // Battery monitor / protector (placeholder driver)
-#ifdef USE_ITM_LOG
-#include "itm_log.h"
-#endif
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -99,6 +96,7 @@ int main(void)
 
   /* Configure the system clock */
   SystemClock_Config();
+  printf("[FUNC] main BEGIN\n");
 
   /* USER CODE BEGIN SysInit */
 
@@ -109,17 +107,14 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
-  #ifdef USE_ITM_LOG
-  ITM_Log_Init();
-  #endif
-  BQ_LOG("MAIN: Init start");
+  printf("[MAIN] Init start\n");
 
   // Initialize the BQ25798 charger
   uint32_t t0 = HAL_GetTick();
   if (BQ25798_init(&bq25798_charger, &hi2c1) != 0) {
     Error_Handler();
   }
-  BQ_LOG("MAIN: Charger init done (+%lums)", (unsigned long)(HAL_GetTick()-t0));
+  printf("[MAIN] Charger init done (+%lums)\n", (unsigned long)(HAL_GetTick()-t0));
   // Initialize the BQ76907 monitor (placeholder init – returns 0 on success)
   t0 = HAL_GetTick();
   if (BQ76907_init(&bq76907_monitor, &hi2c1) != 0) {
@@ -127,7 +122,7 @@ int main(void)
     // For now treat as critical
     Error_Handler();
   }
-  BQ_LOG("MAIN: Monitor init done (+%lums)", (unsigned long)(HAL_GetTick()-t0));
+  printf("[MAIN] Monitor init done (+%lums)\n", (unsigned long)(HAL_GetTick()-t0));
 
   // Apply a placeholder safe configuration snapshot (values TBD after datasheet validation)
   BQ76907_Config cfg = {
@@ -147,9 +142,9 @@ int main(void)
   t0 = HAL_GetTick();
   if (BQ76907_applyConfig(&bq76907_monitor, &cfg) == HAL_OK){
       BQ76907_logConfig(&bq76907_monitor);
-    BQ_LOG("MAIN: Monitor config applied (+%lums)", (unsigned long)(HAL_GetTick()-t0));
+  printf("[MAIN] Monitor config applied (+%lums)\n", (unsigned long)(HAL_GetTick()-t0));
   } else {
-      BQ_LOG("BQ76907 config apply failed");
+  printf("[MAIN] Monitor config apply FAILED\n");
   }
 
   // Initialize timers for immediate first update
@@ -188,6 +183,7 @@ int main(void)
       } else {
           HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET); // Keep Orange LED OFF (assuming active low)
       }
+    /* main loop continues indefinitely */
 
 
       /* Add other non-blocking tasks here */
@@ -235,6 +231,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
 
+  /* System clock configured */
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
@@ -247,7 +244,8 @@ void SystemClock_Config(void)
 
 static void UpdateCharger(void) {
   uint32_t tStart = HAL_GetTick();
-  BQ_LOG("PROC: UpdateCharger begin");
+  printf("[FUNC] UpdateCharger BEGIN\n");
+  printf("[CHG] Update begin\n");
   uint8_t b=0;
   readChargerStatus0(&bq25798_charger, &b);
   readChargerStatus1(&bq25798_charger, &b);
@@ -266,14 +264,22 @@ static void UpdateCharger(void) {
   } else {
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
   }
-  /* Emit a concise status line over SWO/semihost printf (throttled inside). */
+  /* Emit a concise status line */
   BQ25798_logStatus(&bq25798_charger);
-  BQ_LOG("PROC: UpdateCharger end (%lums)", (unsigned long)(HAL_GetTick()-tStart));
+  printf("[CHG] Update end (%lums) VBAT=%umV IBAT=%dmA BUS=%umV/%dmA Fault1.tshut=%u\n",
+    (unsigned long)(HAL_GetTick()-tStart),
+    (unsigned)bq25798_charger.voltageBattery,
+    (unsigned)bq25798_charger.currentBattery,
+    (unsigned)bq25798_charger.voltageBus,
+    (unsigned)bq25798_charger.currentBus,
+    (unsigned)bq25798_charger.faultStatus1.tshut_stat);
+  printf("[FUNC] UpdateCharger END\n");
 }
 
 static void UpdateMonitor(void) {
   uint32_t tStart = HAL_GetTick();
-  BQ_LOG("PROC: UpdateMonitor begin");
+  printf("[FUNC] UpdateMonitor BEGIN\n");
+  printf("[MON] Update begin\n");
   // Read system status & cell voltages
   BQ76907_readSystemStatus(&bq76907_monitor);
   BQ76907_readCellVoltages(&bq76907_monitor);
@@ -295,16 +301,28 @@ static void UpdateMonitor(void) {
   if (lastFaultState != anyFault){
     lastFaultState = anyFault;
     if (anyFault){
-      BQ_LOG("MONITOR FAULT: OV=%u UV=%u OCD=%u SCD=%u OT=%u", bq76907_monitor.status.ov_fault,
-         bq76907_monitor.status.uv_fault, bq76907_monitor.status.ocd_fault,
-         bq76907_monitor.status.scd_fault, bq76907_monitor.status.ot_fault);
+      printf("[MON] FAULT: OV=%u UV=%u OCD=%u SCD=%u OT=%u\n", bq76907_monitor.status.ov_fault,
+             bq76907_monitor.status.uv_fault, bq76907_monitor.status.ocd_fault,
+             bq76907_monitor.status.scd_fault, bq76907_monitor.status.ot_fault);
     } else {
-      BQ_LOG("MONITOR FAULT CLEARED");
+      printf("[MON] FAULT CLEARED\n");
       // Ensure LED off (inactive state high per earlier assumption)
       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
     }
   }
-  BQ_LOG("PROC: UpdateMonitor end (%lums)", (unsigned long)(HAL_GetTick()-tStart));
+  printf("[MON] Update end (%lums) Pack=%umV Cells=%u,%u,%u,%u mV Flags OV=%u UV=%u OCD=%u SCD=%u OT=%u\n",
+    (unsigned long)(HAL_GetTick()-tStart),
+    (unsigned)bq76907_monitor.packVoltage_mV,
+    (unsigned)bq76907_monitor.cellVoltage_mV[0],
+    (unsigned)bq76907_monitor.cellVoltage_mV[1],
+    (unsigned)bq76907_monitor.cellVoltage_mV[2],
+    (unsigned)bq76907_monitor.cellVoltage_mV[3],
+    (unsigned)bq76907_monitor.status.ov_fault,
+    (unsigned)bq76907_monitor.status.uv_fault,
+    (unsigned)bq76907_monitor.status.ocd_fault,
+    (unsigned)bq76907_monitor.status.scd_fault,
+    (unsigned)bq76907_monitor.status.ot_fault);
+  printf("[FUNC] UpdateMonitor END\n");
 }
 
 static uint16_t findMaxCell(uint16_t *vals, uint8_t count) {
@@ -316,9 +334,10 @@ static uint16_t findMinCell(uint16_t *vals, uint8_t count) {
 
 static void EvaluateBalancing(void) {
   uint32_t tStart = HAL_GetTick();
-  BQ_LOG("PROC: EvaluateBalancing begin");
+  printf("[FUNC] EvaluateBalancing BEGIN\n");
+  printf("[BAL] Evaluate begin\n");
   // Placeholder simple balancing: compute delta and decide a mask
-  uint8_t cellCount = 5; // placeholder variant
+  uint8_t cellCount = 4; // 4-series pack
   uint16_t vmax = findMaxCell(bq76907_monitor.cellVoltage_mV, cellCount);
   uint16_t vmin = findMinCell(bq76907_monitor.cellVoltage_mV, cellCount);
   uint16_t delta = vmax - vmin;
@@ -326,7 +345,6 @@ static void EvaluateBalancing(void) {
 
   if (!balancingActive) {
     if (delta > BALANCE_THRESHOLD_MV) {
-      // Select all cells above (vmin + (delta/2)) as a naive approach
       uint16_t cutoff = vmin + (delta/2);
       uint8_t mask = 0;
       for (uint8_t i=0;i<cellCount;i++) {
@@ -341,14 +359,20 @@ static void EvaluateBalancing(void) {
       balancingActive = 0;
     }
   }
-  BQ_LOG("PROC: EvaluateBalancing end (%lums)", (unsigned long)(HAL_GetTick()-tStart));
+  printf("[BAL] Evaluate end (%lums) delta=%u mV active=%u\n",
+    (unsigned long)(HAL_GetTick()-tStart),
+    (unsigned)(vmax - vmin),
+    (unsigned)balancingActive);
+  printf("[FUNC] EvaluateBalancing END\n");
 }
 
 static void applyCellBalancingMask(uint8_t mask) {
-  BQ_LOG("PROC: applyCellBalancingMask mask=0x%02X", mask);
+  printf("[FUNC] applyCellBalancingMask BEGIN\n");
+  printf("[BAL] Apply mask=0x%02X\n", mask);
   // Placeholder: would write mask bits into CELLBAL1/2 registers after verification.
   // Splitting across two registers if needed (e.g., lower 3 bits in CELLBAL1, next in CELLBAL2).
   (void)mask; // suppress unused warning until implemented
+  printf("[FUNC] applyCellBalancingMask END\n");
 }
 
 /* USER CODE END 4 */

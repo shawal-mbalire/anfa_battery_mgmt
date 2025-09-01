@@ -92,3 +92,41 @@ This project employs a rigorous, data-driven approach to development.
 [Include brief, actionable steps on how to set up the toolchain, clone the repository, build the project, and flash the firmware to the target board.]
 
 For more detailed information, please refer to the project's documentation in the `docs/` directory.
+
+## 7. Debug Print Instrumentation
+
+The current firmware revision uses direct `printf` statements inside `Core/Src/main.c` only for coarse-grain runtime tracing (function BEGIN/END, charger/monitor update cycles, balancing decisions, and fault transitions). There is deliberately:
+
+- No ITM/SWO custom logger layer
+- No macro indirection (all calls are plain `printf`)
+- No instrumentation in driver or peripheral files (kept minimal and isolated)
+
+### Adjusting / Disabling Prints
+
+If code size or timing becomes an issue you can quickly disable the instrumentation by either:
+
+1. Commenting out the `printf` lines you do not need, or
+2. Temporarily defining a no-op macro at the very top of `main.c` (above other includes):
+
+```c
+#define printf(...) ((void)0)
+```
+
+When migrating to production, remove unneeded prints to reduce blocking time on the UART/VCOM.
+
+### Typical Output Tags
+
+| Tag | Meaning |
+|-----|---------|
+| `[FUNC] <Name> BEGIN/END` | Entry/exit of a helper or the main update routines |
+| `[CHG]` | Charger (BQ25798) periodic status summary |
+| `[MON]` | Monitor (BQ76907) periodic status / fault changes |
+| `[BAL]` | Cell balancing evaluation decisions |
+
+No other files should contain debug prints; if they appear elsewhere they were added after this documentation and can safely be pruned.
+
+### Detailed Runtime Flow
+For a step-by-step description of the cooperative timing loop and helper routines, see `battery/docs/main_process.md`.
+
+### Hardware Validation Guide
+Refer to `battery/docs/hardware_test_guide.md` for staged test procedures (IDs P0–P6) covering charger/monitor interaction, measurements, protection, balancing, and future low-power validation.

@@ -12,7 +12,9 @@ Lightweight embedded firmware components for a 4‑series Li‑ion battery syste
 Core/
   Inc/ bq25798.h, bq76907.h, ...
   Src/ bq25798.c, bq76907.c, main.c, ...
-Docs/
+docs/
+  architecture.md
+  BRIEF.md
   bq76907_register_verification.md
   bq76907_workflow.md
   requirements_mapping.md
@@ -36,10 +38,12 @@ Project generated via STM32CubeIDE (Makefile present under `Debug/`). Build insi
 - `BQ25798_debugDump()` and `BQ76907_debugDump()` provide quick state summaries.
 
 ## Verification Checklist Snapshot
-See `Docs/requirements_mapping.md` and `Docs/bq76907_register_verification.md` for full list. Key pending items:
+See `docs/requirements_mapping.md` and `docs/bq76907_register_verification.md` for full list. Key pending items:
 - Confirm PART_INFO 5‑bit part value for BQ25798.
 - Replace all `TODO_VERIFY` register addresses in `bq76907.h`.
 - Implement proper scaling (LSB constants) for voltage/current/temp on both devices.
+
+For a structured hardware bring-up and validation sequence, see `docs/hardware_test_guide.md`.
 
 ## Adding Real Scaling
 Example pattern once LSB known:
@@ -59,6 +63,21 @@ Do not enable balancing or high charge currents until thresholds and FET control
 2. Add self-test that reads back every written config register and asserts match.
 3. Introduce error escalation strategy (e.g., LED blink patterns, persistent fault latch).
 4. Flesh out JEITA / NTC logic (temperature dependent charge adjustments).
+
+## Debug Print Instrumentation
+This build intentionally keeps debugging simple: only plain `printf` calls inside `Core/Src/main.c` provide:
+- Function entry/exit markers (`[FUNC] ... BEGIN/END`)
+- Charger update snapshots (`[CHG]`)
+- Monitor update snapshots and faults (`[MON]`)
+- Balancing decisions (`[BAL]`)
+
+See the detailed runtime flow documentation in `docs/main_process.md`.
+
+No drivers or headers contain logging macros. To silence all output quickly while testing timing, add at the very top of `main.c`:
+```c
+#define printf(...) ((void)0)
+```
+or comment out specific lines. Avoid introducing new logging abstractions unless a long‑term tracing backend is required.
 
 ## License
 See `Drivers/STM32G0xx_HAL_Driver/License.txt` for HAL licensing. Project-level new code is intended MIT (add a LICENSE file if public release planned).

@@ -312,14 +312,8 @@ void BQ25798_debugDump(const BQ25798 *dev);
 void BQ25798_logStatus(const BQ25798 *dev);
 
 #ifndef BQ_LOG
- #ifdef USE_ITM_LOG
-  #include "itm_log.h"
-  /* ITM logger already appends a newline; keep consistent prefix */
-  #define BQ_LOG(fmt, ...) do { ITM_Log_Printf("[BQ] " fmt, ##__VA_ARGS__); } while(0)
- #else
-  #include <stdio.h>
-  #define BQ_LOG(fmt, ...) do { printf("[BQ] " fmt "\n", ##__VA_ARGS__); } while(0)
- #endif
+ #include <stdio.h>
+ #define BQ_LOG(fmt, ...) do { printf("[BQ] " fmt "\n", ##__VA_ARGS__); } while(0)
 #endif
 
 /* Verification macro: logs if expression false (non-fatal) */

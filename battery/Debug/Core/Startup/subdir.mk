@@ -7,9 +7,6 @@
 S_SRCS += \
 ../Core/Startup/startup_stm32g0b1retx.s 
 
-O_SRCS += \
-../Core/Startup/startup_stm32g0b1retx.o 
-
 OBJS += \
 ./Core/Startup/startup_stm32g0b1retx.o 
 
