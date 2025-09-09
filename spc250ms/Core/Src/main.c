@@ -132,7 +132,7 @@ int main(void)
 	  htim2.Instance->CCR1 = 100 - intensity;
 
 	  // v con port test
-	  sprintf(txtBuffer,"%u\r\n", count);
+	  sprintf(txtBufferQ,"%u\r\n", count);
 	  count ++;
 	  if (count>100)count=1;
 	  CDC_Transmit_FS((uint8_t *) txtBuffer, strlen(txtBuffer));
