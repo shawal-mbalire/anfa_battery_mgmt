@@ -19,16 +19,19 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
+#include "dma.h"
 #include "fdcan.h"
 #include "i2c.h"
+#include "tim.h"
 #include "ucpd.h"
 #include "usart.h"
-#include "usb_drd_fs.h"
+#include "usbpd.h"
+#include "usb_device.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -92,6 +95,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_FDCAN1_Init();
   MX_I2C1_Init();
   MX_I2C2_Init();
@@ -99,17 +103,45 @@ int main(void)
   MX_UCPD2_Init();
   MX_USART3_UART_Init();
   MX_USART6_UART_Init();
-  MX_USB_DRD_FS_PCD_Init();
   MX_ADC1_Init();
+  MX_TIM2_Init();
+  MX_TIM4_Init();
+  MX_USB_Device_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
 
+  uint8_t intensity = 0;
   /* USER CODE END 2 */
+
+  /* USBPD initialisation ---------------------------------*/
+  MX_USBPD_Init();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  char txtBuffer[8];
+  uint8_t count = 1;
   while (1)
   {
+	  /*
+	   * 100 is max according to out timing this sets pwm dutycycle like analog write.
+	   */
+	  htim2.Instance->CCR1 = 100 - intensity;
+
+	  // v con port test
+	  sprintf(txtBuffer,"%u\r\n", count);
+	  count ++;
+	  if (count>100)count=1;
+	  CDC_Transmit_FS((uint8_t *) txtBuffer, strlen(txtBuffer));
+
+	  HAL_Delay(100);
+
+
     /* USER CODE END WHILE */
+    USBPD_DPM_Run();
 
     /* USER CODE BEGIN 3 */
   }
