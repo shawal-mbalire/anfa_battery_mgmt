@@ -1,0 +1,134 @@
+@startuml PowerManagementV6
+!theme plain
+hide empty description
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam dpi 150
+left to right direction
+
+' Global spacing and arrow styling
+skinparam nodesep 80
+skinparam ranksep 120
+skinparam minlen 2
+skinparam ArrowColor #4B5563
+skinparam ArrowThickness 1.2
+skinparam ArrowFontSize 11
+skinparam defaultFontName "DejaVu Sans, Arial, Helvetica, sans-serif"
+
+skinparam state {
+    BorderColor #1F2937
+    BackgroundColor #F8FBFF
+    FontColor #0F172A
+    RoundCorner 12
+    FontSize 12
+}
+skinparam MinStateWidth 170
+skinparam StateAttributeFontSize 10
+skinparam padding 16
+
+' Stereotype-based colors for quick visual grouping
+skinparam state<<main>> {
+    BackgroundColor #EEF2FF
+    BorderColor #3730A3
+}
+skinparam state<<charging>> {
+    BackgroundColor #ECFDF5
+    BorderColor #065F46
+}
+skinparam state<<discharging>> {
+    BackgroundColor #FEF3C7
+    BorderColor #92400E
+}
+skinparam state<<standby>> {
+    BackgroundColor #F3F4F6
+    BorderColor #374151
+}
+skinparam state<<fault>> {
+    BackgroundColor #FEE2E2
+    BorderColor #991B1B
+}
+
+title Power Management State Machine (V6.0 - Resilient Blueprint)
+
+[*] -right-> IDLE
+
+state IDLE <<main>> {
+    IDLE : entry/ handle_enter_idle()
+    IDLE -down-> DISCHARGING : EVENT_POWER_GOOD_VBAT
+}
+
+state CHARGING_STATES <<charging>> {
+    [*] --> CHARGING_60W
+    
+    state CHARGING_60W <<charging>> {
+        CHARGING_60W : entry/ handle_start_charging_60w()
+    }
+
+    state CHARGING_100W <<charging>> {
+        CHARGING_100W : entry/ handle_start_charging_100w()
+    }
+
+    state CHARGING_MPPT <<charging>> {
+        CHARGING_MPPT : entry/ handle_start_charging_mppt()
+    }
+
+    CHARGING_60W --> CHARGING_100W : EVENT_100W_CONNECTED
+    CHARGING_60W --> CHARGING_MPPT : EVENT_MPPT_CONNECTED
+    CHARGING_100W --> CHARGING_60W : EVENT_60W_CONNECTED
+    CHARGING_100W --> CHARGING_MPPT : EVENT_MPPT_CONNECTED
+    CHARGING_MPPT --> CHARGING_60W : EVENT_60W_CONNECTED
+    CHARGING_MPPT --> CHARGING_100W : EVENT_100W_CONNECTED
+    
+    CHARGING_60W --> [*] : EVENT_BQ_CHARGING_DONE
+    CHARGING_100W --> [*] : EVENT_BQ_CHARGING_DONE
+    CHARGING_MPPT --> [*] : EVENT_BQ_CHARGING_DONE
+}
+
+state DISCHARGING <<discharging>> {
+    DISCHARGING : entry/ handle_start_discharging()
+    DISCHARGING : do/ monitor_battery_voltage()
+}
+
+state STANDBY <<standby>> {
+    STANDBY : entry/ enter_low_power_mode()
+}
+
+state FAULT <<fault>> {
+    state RECOVERABLE_FAULT <<fault>> {
+        RECOVERABLE_FAULT : entry/ log_diagnostics_and_prepare_reset()
+        RECOVERABLE_FAULT --> STANDBY : EVENT_RESET_REQUESTED
+    }
+    state FATAL_FAULT <<fault>> {
+        FATAL_FAULT : entry/ handle_fatal_fault()
+        FATAL_FAULT : do/ blink_status_leds()
+        FATAL_FAULT --> FATAL_FAULT
+    }
+}
+
+' Layout hints to order top-level states left-to-right
+IDLE -[hidden]right-> CHARGING_STATES
+CHARGING_STATES -[hidden]right-> DISCHARGING
+DISCHARGING -[hidden]right-> STANDBY
+STANDBY -[hidden]right-> FAULT
+
+'' Main state transitions - clean routing
+IDLE --> CHARGING_STATES : EVENT_60W_CONNECTED / EVENT_100W_CONNECTED / EVENT_MPPT_CONNECTED
+IDLE --> DISCHARGING : EVENT_POWER_GOOD_VBAT
+IDLE --> FAULT.FATAL_FAULT : EVENT_BMS_FAULT
+
+CHARGING_STATES --> IDLE : EVENT_BQ_CHARGING_DONE
+CHARGING_STATES --> FAULT.FATAL_FAULT : EVENT_BQ_CHARGING_ERROR / EVENT_BMS_FAULT
+CHARGING_STATES --> FAULT.RECOVERABLE_FAULT : EVENT_ADC_TEMP_HIGH
+
+DISCHARGING --> CHARGING_STATES : EVENT_60W_CONNECTED / EVENT_100W_CONNECTED / EVENT_MPPT_CONNECTED
+DISCHARGING --> IDLE : EVENT_LOW_BATTERY
+DISCHARGING --> FAULT.FATAL_FAULT : EVENT_BMS_FAULT
+DISCHARGING --> FAULT.RECOVERABLE_FAULT : EVENT_THERMAL_OVERLOAD / EVENT_OVER_CURRENT
+
+STANDBY --> DISCHARGING : EVENT_POWER_GOOD_VBAT
+STANDBY --> CHARGING_STATES : EVENT_60W_CONNECTED / EVENT_100W_CONNECTED / EVENT_MPPT_CONNECTED
+STANDBY --> IDLE : EVENT_TIMEOUT
+STANDBY --> FAULT.FATAL_FAULT : EVENT_BMS_FAULT
+
+@enduml
