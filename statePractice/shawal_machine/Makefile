@@ -1,34 +1,54 @@
-CC = gcc
-CFLAGS = -Wall -g -Ilib/state_machine
+# State Machine Library - Main Makefile
+# This Makefile provides convenient targets for building all examples
 
-# Application sources
-APP_SOURCES = src/main.c
+.PHONY: all clean help examples simple bms
 
-# Library sources
-LIB_SOURCES = $(wildcard lib/state_machine/*.c)
+# Default target
+all: examples
 
-# All sources
-SOURCES = $(APP_SOURCES) $(LIB_SOURCES)
+# Build all examples
+examples: simple bms
 
-# Corresponding object files
-OBJECTS = $(SOURCES:.c=.o)
+# Build simple state machine example
+simple:
+	@echo "Building simple state machine example..."
+	$(MAKE) -C examples/simple_state_machine
 
-# The name of the executable
-EXECUTABLE = state_machine_app
+# Build battery management system example  
+bms:
+	@echo "Building battery management system example..."
+	$(MAKE) -C examples/battery_management_system
 
-.PHONY: all clean
+# Run simple example
+run-simple: simple
+	@echo "Running simple state machine example..."
+	$(MAKE) -C examples/simple_state_machine run
 
-all: $(EXECUTABLE)
+# Run BMS example
+run-bms: bms
+	@echo "Running battery management system example..."
+	$(MAKE) -C examples/battery_management_system run
 
-$(EXECUTABLE): $(OBJECTS)
-	$(CC) $(CFLAGS) -o $(EXECUTABLE) $(OBJECTS)
-
-# This rule handles object files for both src and lib directories
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
+# Clean all examples
 clean:
-	rm -f $(OBJECTS) $(EXECUTABLE)
+	@echo "Cleaning all examples..."
+	$(MAKE) -C examples/simple_state_machine clean
+	$(MAKE) -C examples/battery_management_system clean
 
-run: all
-	./$(EXECUTABLE)
+# Help target
+help:
+	@echo "State Machine Library - Available targets:"
+	@echo ""
+	@echo "  all           - Build all examples (default)"
+	@echo "  examples      - Build all examples"  
+	@echo "  simple        - Build simple state machine example"
+	@echo "  bms           - Build battery management system example"
+	@echo "  run-simple    - Build and run simple example"
+	@echo "  run-bms       - Build and run BMS example"
+	@echo "  clean         - Clean all build artifacts"
+	@echo "  help          - Show this help message"
+	@echo ""
+	@echo "Example usage:"
+	@echo "  make simple       # Build simple example"
+	@echo "  make run-bms      # Build and run BMS example"
+	@echo "  make clean        # Clean everything"

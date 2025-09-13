@@ -9,11 +9,7 @@ LIB_SOURCES = ../../lib/state_machine/state_machine.c \
 
 # Application sources
 APP_SOURCES = main.c \
-              bms_states.c \
-              bms_power_states.c \
-              bms_control_states.c \
-              bms_events.c \
-              hw_abstraction.c
+              states.c
 
 # All sources
 SOURCES = $(LIB_SOURCES) $(APP_SOURCES)
@@ -22,9 +18,9 @@ SOURCES = $(LIB_SOURCES) $(APP_SOURCES)
 OBJECTS = $(SOURCES:.c=.o)
 
 # The name of the executable
-EXECUTABLE = battery_management_system
+EXECUTABLE = simple_state_machine
 
-.PHONY: all clean
+.PHONY: all clean run
 
 all: $(EXECUTABLE)
 
@@ -44,7 +40,7 @@ run: all
 # Help target
 help:
 	@echo "Available targets:"
-	@echo "  all      - Build the battery management system example"
+	@echo "  all      - Build the simple state machine example"
 	@echo "  clean    - Remove object files and executable"
 	@echo "  run      - Build and run the example"
 	@echo "  help     - Show this help message"

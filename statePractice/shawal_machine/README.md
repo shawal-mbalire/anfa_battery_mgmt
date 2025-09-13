@@ -1,91 +1,276 @@
-# Event-Driven State Machine for Embedded Systems in C
+# State Machine Library for Embedded Systems
 
-This project provides a robust, non-blocking, event-driven state machine implementation in C, specifically designed and optimized for resource-constrained embedded systems. It avoids common pitfalls like large `switch` statements and blocking calls, resulting in a modular, maintainable, and efficient architecture.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 
-## Core Concepts and Optimizations
+A robust, event-driven state machine library in C designed for embedded systems. This library provides a clean, modular approach to implementing state machines without the complexity of large switch statements or blocking operations.
 
-This implementation employs several key concepts crucial for modern embedded systems development:
+## 🚀 Quick Start
 
-### 1. Event-Driven Architecture
-Instead of continuously polling for changes, the system is designed to react to asynchronous **events**. This is a more efficient paradigm, as the CPU can remain in a low-power state until an event (like a button press, timer timeout, or sensor reading) requires processing.
+```bash
+# Clone the repository
+git clone <repository-url>
+cd shawal_machine
 
-### 2. State Machine with Function Pointers
-Each state's logic is encapsulated in its own set of functions. The current state is tracked by a function pointer (`state_handler_t`).
+# Build and run the simple example
+cd examples/simple_state_machine
+make run
 
-- **Advantages**:
-    - **Modularity**: Eliminates monolithic `switch` statements. Each state's logic is self-contained.
-    - **Maintainability**: Adding or modifying a state is as simple as defining a new set of action functions and updating the transitions.
-    - **Efficiency**: A function pointer call is a direct, fast operation.
+# Build and run the battery management system example  
+cd ../battery_management_system
+make run
+```
 
-### 3. State-Action Model (Entry, Main, Exit)
-Each state can have three distinct actions, providing a clean structure:
-- `entry_action`: Executed once upon entering a state. Ideal for setup tasks (e.g., starting a timer, enabling a peripheral).
-- `main_action`: Executed repeatedly while the system remains in the state. Suitable for ongoing tasks (e.g., blinking an LED, monitoring a sensor).
-- `exit_action`: Executed once upon exiting a state. Perfect for cleanup (e.g., stopping a timer, disabling a peripheral).
+## 📋 Table of Contents
 
-This model cleanly separates initialization, continuous work, and cleanup logic for each state.
+- [Features](#features)
+- [Examples](#examples)
+- [Installation](#installation)
+- [Usage](#usage)
+- [API Reference](#api-reference)
+- [Architecture](#architecture)
+- [Contributing](#contributing)
+- [License](#license)
 
-### 4. Non-Blocking Design via Event Queue
-A critical feature of this design is its non-blocking nature, achieved with a **circular event queue** (`event_queue.c`).
+## ✨ Features
 
-- **How it works**: When an event occurs (e.g., inside an Interrupt Service Routine - ISR), it is quickly placed into a fixed-size queue. The main loop later retrieves events from this queue and processes them one by one.
-- **Benefit**: This decouples event detection from event processing. The ISR or event-generating task can run very quickly without getting blocked by the potentially longer state transition logic. This ensures the system remains responsive to new events.
+- **Event-Driven Architecture**: Reactive system design that responds to events rather than polling
+- **Non-Blocking Operations**: FIFO event queue prevents blocking in interrupt contexts
+- **Memory Efficient**: Zero dynamic allocation, `const` state definitions stored in Flash/ROM
+- **Modular Design**: Clean separation of state logic using function pointers
+- **Entry/Main/Exit Actions**: Well-defined state lifecycle management
+- **Real-World Examples**: Complete battery management system implementation
+- **Embedded-Friendly**: Designed for resource-constrained microcontrollers
 
-### 5. Resource and Memory Optimization
-- **No Dynamic Allocation**: The code uses **zero dynamic memory allocation** (`malloc`/`free`). All data structures, including the event queue, are statically allocated with a fixed size. This is crucial for the reliability and predictability of embedded systems, as it eliminates the risk of memory leaks or heap fragmentation.
-- **`const` State Definitions**: State definitions (`IDLE_STATE`, `ACTIVE_STATE`) are declared as `const`. This allows the compiler to place them in read-only memory (Flash/ROM) instead of RAM, saving precious RAM resources.
+## 🎯 Examples
 
-## Audit and Areas for Improvement
-
-While this implementation is robust, a production-grade system should consider the following:
-
-### 1. Interrupt Safety (Concurrency)
-The `push_event()` function is not currently "interrupt-safe." If an interrupt occurs and calls `push_event()` while the main loop is in the middle of modifying the queue, the queue's state could be corrupted.
-
-- **Solution**: The critical section within `push_event()` where the queue's `head` pointer and flags are modified must be atomic. This is typically achieved by briefly disabling interrupts before modifying the queue and re-enabling them immediately after.
+### Simple State Machine
+A minimal two-state example demonstrating basic concepts:
 
 ```c
-// Example of making push_event interrupt-safe
-void push_event(event_t event) {
-    // 1. Disable interrupts
-    disable_interrupts();
+// IDLE state ⟷ ACTIVE state
+// Events: EVENT_BUTTON_PRESS, EVENT_TIMEOUT
+```
 
-    // Critical section: modify the queue
-    int next_head = (event_queue.head + 1) % EVENT_QUEUE_SIZE;
-    if (next_head == event_queue.tail && !event_queue.is_empty) {
-        // Handle queue full error...
-    } else {
-        event_queue.queue[event_queue.head] = event;
-        event_queue.head = next_head;
-        event_queue.is_empty = false;
+**Use Case**: Perfect for learning the library fundamentals.
+
+### Battery Management System (BMS)
+A comprehensive real-world implementation featuring:
+
+- **6 States**: Idle, Charging, Discharging, LED Control, Fault, Deep Sleep
+- **Hardware Abstraction**: I2C, GPIO, ADC interfaces
+- **Fault Handling**: Temperature monitoring, communication faults
+- **Power Management**: Deep sleep mode with wake-up capability
+- **Multiple Power Sources**: USB-C (60W/100W) and Solar charging
+
+**Use Case**: Production-ready embedded system demonstrating advanced patterns.
+
+## 🛠 Installation
+
+### Prerequisites
+
+- GCC compiler (version 7.0+)
+- Make build system
+- Git
+
+### Build Instructions
+
+```bash
+# Build specific example
+cd examples/simple_state_machine
+make
+
+# Clean build artifacts
+make clean
+
+# Build and run
+make run
+```
+
+## 📚 Usage
+
+### Basic State Machine Implementation
+
+1. **Define your states and events**:
+
+```c
+#include "state_machine.h"
+
+// State function declarations
+void my_idle_entry(void);
+void my_idle_main(void);
+void my_idle_exit(void);
+void my_idle_transition(Event event);
+
+// State definition
+const StateActions MY_IDLE_STATE = {
+    .entry_action = my_idle_entry,
+    .main_action = my_idle_main,
+    .exit_action = my_idle_exit,
+    .transition_signal = my_idle_transition
+};
+```
+
+2. **Implement state functions**:
+
+```c
+void my_idle_entry(void) {
+    printf("Entering IDLE state\n");
+    // Initialize hardware, start timers, etc.
+}
+
+void my_idle_main(void) {
+    // Continuous actions while in this state
+    // e.g., blink LED, read sensors
+}
+
+void my_idle_exit(void) {
+    printf("Exiting IDLE state\n");
+    // Cleanup, stop timers, etc.
+}
+
+void my_idle_transition(Event event) {
+    switch (event) {
+        case EVENT_BUTTON_PRESS:
+            ChangeState(&MY_ACTIVE_STATE);
+            break;
+        // Handle other events...
     }
-
-    // 2. Re-enable interrupts
-    enable_interrupts();
 }
 ```
 
-### 2. Robust Error Handling
-- **Event Queue Full**: The current implementation prints a message if the queue is full. In a real system, this should be handled more gracefully. Depending on the application, you might drop the oldest event, drop the newest event, or transition to an error state.
-- **Unhandled Events**: If an event occurs that the current state doesn't handle, the system currently ignores it. For safety-critical applications, it may be necessary to transition to a dedicated "Error" or "Safe" state.
-
-### 3. Non-Blocking Logging
-The `logger.c` uses `printf`, which is a blocking and resource-intensive function. A true non-blocking logger for an embedded system would write log messages to a separate circular buffer, and a low-priority task or a UART "transmit empty" interrupt would handle the actual transmission of data.
-
-### 4. Power Management
-For battery-powered devices, the main loop should put the CPU into a low-power sleep mode when there are no events to process. The CPU would then be woken up by an interrupt (which would push an event to the queue).
+3. **Initialize and run**:
 
 ```c
-// Conceptual low-power main loop
-void main_loop(void) {
+int main(void) {
+    // Initialize state machine
+    g_stateMachine.current_state = &MY_IDLE_STATE;
+    
+    // Execute entry action
+    if (g_stateMachine.current_state->entry_action) {
+        g_stateMachine.current_state->entry_action();
+    }
+    
+    // Main loop
     while(1) {
-        event_t event = pop_event();
+        // Execute current state's main action
+        if (g_stateMachine.current_state->main_action) {
+            g_stateMachine.current_state->main_action();
+        }
+        
+        // Process events
+        Event event = PopEvent();
         if (event != EVENT_MAX) {
-            // Process event...
-        } else {
-            // No events to process, enter sleep mode
-            enter_sleep_mode(); // Woken by next interrupt
+            if (g_stateMachine.current_state->transition_signal) {
+                g_stateMachine.current_state->transition_signal(event);
+            }
         }
     }
+    
+    return 0;
 }
 ```
+
+## 📖 API Reference
+
+### Core Functions
+
+| Function | Description |
+|----------|-------------|
+| `ChangeState(StateHandler new_state)` | Transition to a new state with proper entry/exit handling |
+| `PushEvent(Event event)` | Add event to the queue (interrupt-safe) |
+| `PopEvent()` | Retrieve and remove event from queue |
+| `non_blocking_log(const char* message)` | Non-blocking logging utility |
+
+### State Structure
+
+```c
+typedef struct StateActions_s {
+    void (*entry_action)(void);        // Called once when entering state
+    void (*main_action)(void);         // Called repeatedly while in state  
+    void (*exit_action)(void);         // Called once when exiting state
+    void (*transition_signal)(Event event); // Handles state transitions
+} StateActions;
+```
+
+### Predefined Events
+
+```c
+typedef enum {
+    EVENT_BUTTON_PRESS,    // Button press detected
+    EVENT_TIMEOUT,         // Timer expired
+    EVENT_DOOR_OPEN,       // Door sensor triggered
+    EVENT_QUEUE_FULL,      // Event queue overflow
+    EVENT_MAX              // Sentinel value (no event)
+} Event;
+```
+
+## 🏗 Architecture
+
+### Event-Driven Design
+
+The library uses an event-driven architecture where:
+
+1. **Events** are generated by interrupts, timers, or external signals
+2. **Event Queue** stores events in a non-blocking FIFO buffer
+3. **State Machine** processes events and triggers state transitions
+4. **States** encapsulate specific system behaviors
+
+### Memory Layout
+
+```
+Flash/ROM:              RAM:
+┌─────────────────┐    ┌─────────────────┐
+│ State Definitions│    │ Event Queue     │
+│ (const data)    │    │ State Machine   │
+│ Program Code    │    │ Variables       │
+└─────────────────┘    └─────────────────┘
+```
+
+### Key Benefits
+
+- **Modularity**: Each state is self-contained
+- **Maintainability**: Easy to add/modify states
+- **Efficiency**: Function pointer calls, no large switch statements
+- **Safety**: Non-blocking operations, predictable memory usage
+- **Scalability**: Easily extensible for complex systems
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+### Quick Contribution Steps
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes and test thoroughly
+4. Commit: `git commit -m "Add amazing feature"`
+5. Push: `git push origin feature/amazing-feature`
+6. Create a Pull Request
+
+### Areas for Contribution
+
+- **New Examples**: Industry-specific implementations
+- **Platform Support**: Additional microcontroller support
+- **Testing**: Unit tests and integration tests
+- **Documentation**: Tutorials, API docs, diagrams
+- **Optimization**: Performance improvements, memory reduction
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🔗 Related Projects
+
+- [TinyStateMachine](https://github.com/example/tiny-state-machine) - Minimal state machine for 8-bit MCUs
+- [EmbeddedSM](https://github.com/example/embedded-sm) - State machine with RTOS integration
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](../../issues)
+- **Discussions**: [GitHub Discussions](../../discussions)
+- **Documentation**: Check example READMEs and code comments
+
+---
+
+⭐ **If this library helped you, please give it a star!** ⭐
